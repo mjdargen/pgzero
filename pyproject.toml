@@ -1,10 +1,10 @@
 [project]
-name = "pgzero"
-description = "A zero-boilerplate 2D games framework"
-readme = "README.rst"
-requires-python = ">=3.6"
+name = "pgzero-mjd"
+description = "A custom Pygame Zero build for class use"
+readme = "README.md"
+requires-python = ">=3.10, <3.14"
 dependencies = [
-    "pygame>=2.1",
+    "pygame>=2.6.1",
     "numpy",
     "pyfxr",
 ]
@@ -12,13 +12,13 @@ dynamic = ["version"]
 
 [project.urls]
 Documentation = "https://pygame-zero.readthedocs.io/"
-Source = "https://github.com/lordmauve/pgzero"
+Source = "https://github.com/mjdargen/pgzero"
 
 [project.scripts]
 pgzrun = "pgzero.runner:main"
 
 [build-system]
-requires = ["setuptools>=64", "setuptools-scm>=8"]
+requires = ["setuptools>=80", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
