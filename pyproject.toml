@@ -26,6 +26,34 @@ write_to = "src/pgzero/_version.py"
 
 [tool.ruff]
 builtins = [
-    "Actor", "Rect", "ZRect", "animate", "clock", "exit", "images", "keyboard", "keymods",
-    "keys", "mouse", "music", "screen", "sounds", "storage", "tone"
+    "screen",  # graphics output
+
+    "Actor",
+    "Sprite",
+    "SpriteActor",
+    "images",  # graphics
+
+    "sounds",
+    "music",
+    "tone",  # sound
+
+    "clock",
+    "animate",  # timing
+
+    "Rect",
+    "ZRect",  # geometry
+
+    "keyboard",
+    "mouse",
+    "keys",
+    "keymods",  # input
+
+    "storage",  # persistence
+
+    "Game",
+    "game",
+
+    "exit",
+
+    "load_tile_map_actors",
 ]

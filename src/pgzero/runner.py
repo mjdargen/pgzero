@@ -9,7 +9,7 @@ import warnings
 import sys
 import os
 import pygame
-from contextlib import contextmanager
+
 pygame.mixer.pre_init(frequency=22050, size=-16, channels=2)
 pygame.init()
 
@@ -24,8 +24,8 @@ def _check_python_ok_for_pygame():
 
     The problem doesn't occur on Linux and Windows.
     """
-    if sys.platform == 'darwin':  # This is a Mac
-        return 'Library/Frameworks' in sys.executable
+    if sys.platform == "darwin":  # This is a Mac
+        return "Library/Frameworks" in sys.executable
     else:
         return True
 
@@ -41,20 +41,19 @@ def _substitute_full_framework_python():
     Then we use os.execv() to start a replacement process that uses the
     same environment as the previous one.
     """
-    PYVER = '{}.{}'.format(*sys.version_info[:2])
-    base_fw = '/Library/Frameworks/Python.framework/Versions/'
-    framework_python = base_fw + '{pv}/bin/python{pv}'.format(pv=PYVER)
-    venv_base = os.environ.get('VIRTUAL_ENV')
+    PYVER = "{}.{}".format(*sys.version_info[:2])
+    base_fw = "/Library/Frameworks/Python.framework/Versions/"
+    framework_python = base_fw + "{pv}/bin/python{pv}".format(pv=PYVER)
+    venv_base = os.environ.get("VIRTUAL_ENV")
     if not venv_base or not os.path.exists(framework_python):
         # Do nothing if virtual env hasn't been set up or if we can't
         # find the framework Python interpreter
         return
     venv_paths = [p for p in sys.path if p.startswith(venv_base)]
     # Need to allow for PYTHONPATH not already existing in environment
-    os.environ['PYTHONPATH'] = ':'.join(venv_paths + [
-        os.environ.get('PYTHONPATH', '')]).rstrip(':')
+    os.environ["PYTHONPATH"] = ":".join(venv_paths + [os.environ.get("PYTHONPATH", "")]).rstrip(":")
     # Pass command line args to the new process
-    os.execv(framework_python, ['python', '-m', 'pgzero'] + sys.argv[1:])
+    os.execv(framework_python, ["python", "-m", "pgzero"] + sys.argv[1:])
 
 
 def main():
@@ -65,23 +64,16 @@ def main():
 
     parser = ArgumentParser()
     parser.add_argument(
-        '--fps',
-        action='store_true',
-        help="Print periodic FPS measurements on the terminal."
+        "--fps",
+        action="store_true",
+        help="Print periodic FPS measurements on the terminal.",
     )
-    parser.add_argument(
-        '--version',
-        action='version',
-        version=f'%(prog)s {__version__}'
-    )
-    parser.add_argument(
-        'game',
-        help="The Pygame Zero game to run (a Python file or directory)."
-    )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument("game", help="The Pygame Zero game to run (a Python file or directory).")
     args = parser.parse_args()
 
     if __debug__:
-        warnings.simplefilter('default', DeprecationWarning)
+        warnings.simplefilter("default", DeprecationWarning)
 
     try:
         load_and_run(args.game, fps=args.fps)
@@ -111,26 +103,27 @@ def load_and_run(path, *, fps: bool = False):
     """
     path = path.rstrip(os.sep)
     try:
-        with open(path, 'rb') as f:
+        with open(path, "rb") as f:
             src = f.read()
     except FileNotFoundError:
         raise NoMainModule(f"Error: {path} does not exist.")
     except (IsADirectoryError, PermissionError):
         name = os.path.basename(path)
         for candidate in (
-            '__main__.py',
-            'main.py',
-            'run_game.py',
-            f'{name}.py'
+            "__main__.py",
+            "main.py",
+            "run_game.py",
+            f"{name}.py",
         ):
             try:
-                with open(os.path.join(path, candidate), 'rb') as f:
+                with open(os.path.join(path, candidate), "rb") as f:
                     src = f.read()
                     break
             except FileNotFoundError:
                 pass
         else:
-            raise NoMainModule(f"""\
+            raise NoMainModule(
+                f"""\
 Error: {path} is a directory.
 
 To run a directory with pgzrun, it must contain a file named __main__.py,
@@ -139,11 +132,12 @@ main.py, run_game.py, or a .py file with the same name as the directory.
 You can also run a specific file with:
 
     pgzrun path/to/your/file.py
-""")
+"""
+            )
     else:
         name, _ = os.path.splitext(os.path.basename(path))
 
-    code = compile(src, os.path.basename(path), 'exec', dont_inherit=True)
+    code = compile(src, os.path.basename(path), "exec", dont_inherit=True)
     mod = ModuleType(name)
     mod.__file__ = path
     mod.__name__ = name
@@ -154,52 +148,15 @@ You can also run a specific file with:
     sys._pgzrun = True
 
     prepare_mod(mod)
-    with temp_window():
-        exec(code, mod.__dict__)
+    exec(code, mod.__dict__)
 
-    pygame.display.init()
     PGZeroGame.show_default_icon()
     try:
         run_mod(mod, fps=fps)
     finally:
-        # Clean some of the state we created, useful in testing
         pygame.display.quit()
         clock.clock.clear()
         del sys.modules[name]
-
-
-@contextmanager
-def temp_window():
-    """Create a temporary hidden window for the duration of the context.
-
-    Several Pygame surface operations access the state of the screen as a
-    global:
-
-    * Surface.convert_alpha() without arguments converts a surface for fast
-      blitting to the display.
-    * Surface() without flags creates a surface identical to the display
-      format.
-
-    There's no good API to expose what the display format is until we create
-    a window, so we create a temporary window, which let us use these
-    functions. The expectation is that when we create a real window this will
-    have the same display format and blits etc will still be fast.
-
-    After the initial load we dispose of this window and start again. Resizing
-    the initial window has a problem: it doesn't recenter the window on the
-    screen.
-
-    """
-    # An icon needs to exist before the window is created.
-    PGZeroGame.show_default_icon()
-    pygame.display.set_mode(
-        (100, 100),
-        flags=(DISPLAY_FLAGS & ~pygame.SHOWN) | pygame.HIDDEN,
-    )
-    try:
-        yield
-    finally:
-        pygame.display.quit()
 
 
 def prepare_mod(mod):
@@ -219,9 +176,16 @@ def prepare_mod(mod):
     storage.storage._set_filename_from_path(mod.__file__)
     loaders.set_root(mod.__file__)
 
-    # Copy pgzero builtins into system builtins
-    from . import builtins as pgzero_builtins
+    PGZeroGame.show_default_icon()
+    pygame.display.set_mode((100, 100), DISPLAY_FLAGS)
+
+    from .game import Game
     import builtins as python_builtins
+
+    python_builtins.game = Game()
+
+    from . import builtins as pgzero_builtins
+
     for k, v in vars(pgzero_builtins).items():
         python_builtins.__dict__.setdefault(k, v)
 

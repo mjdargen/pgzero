@@ -10,12 +10,177 @@ import pgzero.keyboard
 import pgzero.screen
 import pgzero.loaders
 import pgzero.screen
+import builtins
 
 from . import constants
+from typing import Any
 
 
 screen = None  # This global surface is what actors draw to
 DISPLAY_FLAGS = pygame.SHOWN
+
+
+class Game:
+    """
+    Simple game-wide state container for beginner projects.
+
+    Use this to keep track of things like score, level, timers, and
+    the current game state without needing lots of global variables.
+    """
+
+    def __init__(self):
+        self._start_callback = None
+        self._clock = None
+        self._is_restarting = False
+        self._restart_clear_mode = "immediate"
+        self.reset()
+
+    def _bind_engine(self, start_callback=None, clock=None):
+        self._start_callback = start_callback
+        self._clock = clock
+
+    def reset(self):
+        """Reset the game back to its default starting values."""
+        self.state = "playing"
+
+        self.score = 0
+        self.level = 1
+
+        self.timer = 0
+        self.frame_count = 0
+
+        self.data = {}
+
+    def restart(self, delay=0.0, clear_clock="immediate"):
+        """
+        Restart the game.
+
+        clear_clock options:
+        - "immediate": clear scheduled events right away
+        - "on_restart": clear scheduled events when the restart actually happens
+        - "never": do not clear scheduled events
+
+        Note: any previously scheduled restart is always unscheduled first.
+        """
+        if self._is_restarting:
+            raise RuntimeError(
+                "game.restart() was called from inside start(). "
+                "Do not call game.restart() inside start(). "
+                "The library already calls start() during restart."
+            )
+
+        if clear_clock not in ("immediate", "on_restart", "never"):
+            raise ValueError("clear_clock must be 'immediate', 'on_restart', or 'never'")
+
+        self._restart_clear_mode = clear_clock
+
+        if self._clock:
+            # Always cancel any pending restart first
+            self._clock.unschedule(self._do_restart)
+
+            # Only clear everything else immediately if requested
+            if clear_clock == "immediate":
+                self._clock.clear()
+
+        if delay and delay > 0:
+            if self._clock:
+                self._clock.schedule_unique(self._do_restart, delay)
+            return
+
+        self._do_restart()
+
+    def _do_restart(self):
+        if self._is_restarting:
+            return
+
+        self._is_restarting = True
+        try:
+            # Delay clock clearing until the actual restart moment
+            if self._clock and self._restart_clear_mode == "on_restart":
+                self._clock.clear()
+                # clear() may remove this scheduled callback, so make sure
+                # we do not accidentally re-enter or depend on future calls
+
+            self.reset()
+            if callable(self._start_callback):
+                self._start_callback()
+        finally:
+            self._is_restarting = False
+
+    def win(self, restart_after=None, clear_clock="immediate"):
+        if self.state != "playing":
+            return
+        self.state = "won"
+
+        if self._clock and clear_clock == "immediate":
+            self._clock.clear()
+
+        if restart_after is not None:
+            restart_mode = clear_clock if clear_clock != "immediate" else "never"
+            self.restart(restart_after, clear_clock=restart_mode)
+
+    def lose(self, restart_after=None, clear_clock="immediate"):
+        if self.state != "playing":
+            return
+        self.state = "lost"
+
+        if self._clock and clear_clock == "immediate":
+            self._clock.clear()
+
+        if restart_after is not None:
+            restart_mode = clear_clock if clear_clock != "immediate" else "never"
+            self.restart(restart_after, clear_clock=restart_mode)
+
+    def over(self, restart_after=None, clear_clock="immediate"):
+        if self.state != "playing":
+            return
+        self.state = "over"
+
+        if self._clock and clear_clock == "immediate":
+            self._clock.clear()
+
+        if restart_after is not None:
+            restart_mode = clear_clock if clear_clock != "immediate" else "never"
+            self.restart(restart_after, clear_clock=restart_mode)
+
+    # allows student creation of any variable for game, similar to Actor
+    # def __getattr__(self, name: str) -> Any:
+    #     return self.__dict__.get(name)
+
+    # def __setattr__(self, name: str, value: Any) -> None:
+    #     self.__dict__[name] = value
+
+    def start(self):
+        """Start or resume normal gameplay."""
+        self.state = "playing"
+
+    def pause(self):
+        """Pause the game."""
+        if self.state == "playing":
+            self.state = "paused"
+
+    def resume(self):
+        """Resume the game if paused."""
+        if self.state == "paused":
+            self.state = "playing"
+
+    def next_level(self):
+        """Advance to the next level."""
+        self.level += 1
+
+    def add_score(self, points):
+        """Increase the score by the given number of points."""
+        self.score += points
+
+    def tick(self, dt):
+        """
+        Update common counters.
+        dt = time since last frame (in seconds)
+        """
+        self.frame_count += 1
+
+        if self.state == "playing":
+            self.timer += dt
 
 
 def exit():
@@ -33,7 +198,7 @@ def exit():
 def positional_parameters(handler):
     """Get the positional parameters of the given function."""
     code = handler.__code__
-    return code.co_varnames[:code.co_argcount]
+    return code.co_varnames[: code.co_argcount]
 
 
 class DEFAULTICON:
@@ -46,11 +211,7 @@ class PGZeroGame:
     Dispatch events, call update functions, draw. Repeat.
     """
 
-    def __init__(
-        self,
-        mod: types.ModuleType,
-        fps: bool = False
-    ):
+    def __init__(self, mod: types.ModuleType, fps: bool = False):
         """Construct a game loop given the pgzero module mod.
 
         If fps is True, show a FPS count at the bottom left of the window.
@@ -75,18 +236,14 @@ class PGZeroGame:
         changed = False
         mod = self.mod
 
-        icon = getattr(self.mod, 'ICON', DEFAULTICON)
+        icon = getattr(self.mod, "ICON", DEFAULTICON)
         if icon and icon != self.icon:
             self.show_icon()
 
-        w = getattr(mod, 'WIDTH', 800)
-        h = getattr(mod, 'HEIGHT', 600)
+        w = getattr(mod, "WIDTH", 800)
+        h = getattr(mod, "HEIGHT", 600)
         if w != self.width or h != self.height:
-            self.screen = pygame.display.set_mode(
-                (w, h),
-                DISPLAY_FLAGS,
-                vsync=1
-            )
+            self.screen = pygame.display.set_mode((w, h), DISPLAY_FLAGS, vsync=1)
             pgzero.screen.screen_instance._set_surface(self.screen)
 
             # Set the global screen that actors blit to
@@ -97,7 +254,7 @@ class PGZeroGame:
             # Dimensions changed, request a redraw
             changed = True
 
-        title = getattr(self.mod, 'TITLE', 'Pygame Zero Game')
+        title = getattr(self.mod, "TITLE", "Pygame Zero Game")
         if title != self.title:
             pygame.display.set_caption(title)
             self.title = title
@@ -109,11 +266,12 @@ class PGZeroGame:
         """Show a default icon loaded from Pygame Zero resources."""
         from io import BytesIO
         from pkgutil import get_data
-        buf = BytesIO(get_data(__name__, 'data/icon.png'))
+
+        buf = BytesIO(get_data(__name__, "data/icon.png"))
         pygame.display.set_icon(pygame.image.load(buf))
 
     def show_icon(self):
-        icon = getattr(self.mod, 'ICON', DEFAULTICON)
+        icon = getattr(self.mod, "ICON", DEFAULTICON)
         if icon is DEFAULTICON:
             self.show_default_icon()
         else:
@@ -121,25 +279,22 @@ class PGZeroGame:
         self.icon = icon
 
     EVENT_HANDLERS = {
-        pygame.MOUSEBUTTONDOWN: 'on_mouse_down',
-        pygame.MOUSEBUTTONUP: 'on_mouse_up',
-        pygame.MOUSEMOTION: 'on_mouse_move',
-        pygame.KEYDOWN: 'on_key_down',
-        pygame.KEYUP: 'on_key_up',
-        constants.MUSIC_END: 'on_music_end'
+        pygame.MOUSEBUTTONDOWN: "on_mouse_down",
+        pygame.MOUSEBUTTONUP: "on_mouse_up",
+        pygame.MOUSEMOTION: "on_mouse_move",
+        pygame.KEYDOWN: "on_key_down",
+        pygame.KEYUP: "on_key_up",
+        constants.MUSIC_END: "on_music_end",
     }
 
     def map_buttons(val):
         return {c for c, pressed in zip(constants.mouse, val) if pressed}
 
-    EVENT_PARAM_MAPPERS = {
-        'buttons': map_buttons,
-        'button': constants.mouse,
-        'key': constants.keys
-    }
+    EVENT_PARAM_MAPPERS = {"buttons": map_buttons, "button": constants.mouse, "key": constants.keys}
 
     def load_handlers(self):
         from .spellcheck import spellcheck
+
         spellcheck(vars(self.mod))
         self.handlers = {}
         for type, name in self.EVENT_HANDLERS.items():
@@ -162,7 +317,7 @@ class PGZeroGame:
 
         """
         code = handler.__code__
-        param_names = code.co_varnames[:code.co_argcount]
+        param_names = code.co_varnames[: code.co_argcount]
 
         def make_getter(mapper, getter):
             if mapper:
@@ -228,10 +383,15 @@ class PGZeroGame:
             return lambda: None
         else:
             if draw.__code__.co_argcount != 0:
-                raise TypeError(
-                    "draw() must not take any arguments."
-                )
+                raise TypeError("draw() must not take any arguments.")
             return draw
+
+    def get_start_func(self):
+        """Get the start() function from the user module if it exists."""
+        start = getattr(self.mod, "start", None)
+        if start is not None and not callable(start):
+            raise TypeError(f"{start!r} is not callable")
+        return start
 
     def run(self):
         """Invoke the main loop, and then clean up."""
@@ -253,8 +413,7 @@ class PGZeroGame:
         user_key_up = self.handlers.get(pygame.KEYUP)
 
         def key_down(event):
-            if event.key == pygame.K_q and \
-                    event.mod & (pygame.KMOD_CTRL | pygame.KMOD_META):
+            if event.key == pygame.K_q and event.mod & (pygame.KMOD_CTRL | pygame.KMOD_META):
                 sys.exit(0)
             self.keyboard._press(event.key)
             if user_key_down:
@@ -267,6 +426,23 @@ class PGZeroGame:
 
         self.handlers[pygame.KEYDOWN] = key_down
         self.handlers[pygame.KEYUP] = key_up
+
+    def tick_game_state(self, dt):
+        """Tick the global game object if it exists."""
+        game_obj = getattr(self.mod, "game", None)
+
+        if game_obj is None:
+            game_obj = getattr(builtins, "game", None)
+
+        if game_obj is None:
+            return False
+
+        tick = getattr(game_obj, "tick", None)
+        if not callable(tick):
+            return False
+
+        tick(dt)
+        return True
 
     def handle_events(self, dt, update) -> bool:
         """Handle all events for the current frame.
@@ -285,6 +461,8 @@ class PGZeroGame:
         clock.tick(dt)
         updated |= clock.fired
 
+        updated |= self.tick_game_state(dt)
+
         if update:
             update(dt)
             updated = True
@@ -298,11 +476,23 @@ class PGZeroGame:
 
         update = self.get_update_func()
         draw = self.get_draw_func()
+        start = self.get_start_func()
+
+        game_obj = getattr(self.mod, "game", None)
+        if game_obj is None:
+            game_obj = getattr(builtins, "game", None)
+
+        if game_obj is not None and hasattr(game_obj, "_bind_engine"):
+            game_obj._bind_engine(start_callback=start, clock=pgzero.clock.clock)
+
         self.load_handlers()
         self.inject_global_handlers()
 
-        logic_timer = Timer('logic', print=self.fps)
-        draw_timer = Timer('draw', print=self.fps)
+        if start:
+            start()
+
+        logic_timer = Timer("logic", print=self.fps)
+        draw_timer = Timer("draw", print=self.fps)
         for i, dt in enumerate(frames(60)):
             with logic_timer:
                 updated = self.handle_events(dt, update)
@@ -341,10 +531,12 @@ class Timer:
     """Context manager to time the game loop."""
 
     __slots__ = (
-        'name',
-        'total', 'count', 'worst',
-        'start',
-        'print',
+        "name",
+        "total",
+        "count",
+        "worst",
+        "start",
+        "print",
     )
 
     def __init__(self, name, print=False):
@@ -367,8 +559,6 @@ class Timer:
     def get_mean(self) -> float:
         mean = self.total / self.count
         if self.print:
-            print(
-                f"{self.name} mean: {mean:0.1f}ms  "
-                f"worst: {self.worst:0.1f}ms")
+            print(f"{self.name} mean: {mean:0.1f}ms  " f"worst: {self.worst:0.1f}ms")
         self.worst = self.total = self.count = 0
         return mean
