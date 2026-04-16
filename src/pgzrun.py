@@ -9,6 +9,7 @@ __main__).
 """
 
 import os
+import warnings
 
 if (
     "CODIO_BOX_DOMAIN" in os.environ
@@ -17,9 +18,17 @@ if (
     or os.path.exists("/home/codio")
 ):
     os.environ["SDL_AUDIODRIVER"] = "dummy"
-import warnings
+    warnings.filterwarnings("ignore", message=".*avx2 capable.*", category=RuntimeWarning)
 
-warnings.filterwarnings("ignore", message=".*avx2 capable.*", category=RuntimeWarning)
+# Hide pygame welcome message
+os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
+
+# Suppress pkg_resources deprecation warning (from pygame)
+warnings.filterwarnings(
+    "ignore",
+    message=r"pkg_resources is deprecated as an API.*",
+    category=UserWarning,
+)
 
 
 import pygame
