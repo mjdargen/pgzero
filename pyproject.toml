@@ -2,7 +2,7 @@
 name = "pgzero-mjd"
 description = "A custom Pygame Zero build for class use"
 readme = "README.md"
-requires-python = ">=3.10, <3.14"
+requires-python = ">=3.6, <3.14"
 dependencies = [
     "pygame>=2.6.1",
     "numpy",
