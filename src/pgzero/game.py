@@ -452,6 +452,12 @@ class PGZeroGame:
         updated = False
 
         for event in pygame.event.get():
+            if event.type == constants.MUSIC_END:
+                # internal music bookkeeping
+                from . import music
+
+                music._on_music_end()
+
             handler = self.handlers.get(event.type)
             if handler:
                 handler(event)
