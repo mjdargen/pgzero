@@ -5,7 +5,6 @@ import xml.etree.ElementTree as ET
 from . import loaders
 from .actor import Actor
 
-
 FLIP_H = 0x80000000
 FLIP_V = 0x40000000
 FLIP_D = 0x20000000
@@ -20,9 +19,7 @@ def _load_xml_from_maps(name):
 def _resolve_relative_map_path(base_name, relative_path):
     base_dir = os.path.dirname(base_name)
     if base_dir:
-        return os.path.normpath(os.path.join(base_dir, relative_path)).replace(
-            "\\", "/"
-        )
+        return os.path.normpath(os.path.join(base_dir, relative_path)).replace("\\", "/")
     return relative_path
 
 
@@ -53,12 +50,8 @@ def _load_tilesets(root, tmx_name):
         spacing = int(ts_root.attrib.get("spacing", 0))
         margin = int(ts_root.attrib.get("margin", 0))
 
-        sheet_w = (tilesheet.get_width() - 2 * margin + spacing) // (
-            tile_width + spacing
-        )
-        sheet_h = (tilesheet.get_height() - 2 * margin + spacing) // (
-            tile_height + spacing
-        )
+        sheet_w = (tilesheet.get_width() - 2 * margin + spacing) // (tile_width + spacing)
+        sheet_h = (tilesheet.get_height() - 2 * margin + spacing) // (tile_height + spacing)
 
         tilesets[firstgid] = {
             "image": tilesheet,
@@ -101,14 +94,9 @@ def load_tile_map_actors(tmx_name, scale=1):
 
         encoding = data.attrib.get("encoding")
         if encoding != "csv":
-            raise ValueError(
-                f"Layer '{name}' must use CSV encoding. Found: {encoding!r}"
-            )
+            raise ValueError(f"Layer '{name}' must use CSV encoding. Found: {encoding!r}")
 
-        contents = [
-            [int(v) for v in row.split(",") if v.strip()]
-            for row in data.text.strip().splitlines()
-        ]
+        contents = [[int(v) for v in row.split(",") if v.strip()] for row in data.text.strip().splitlines()]
 
         items = []
 
@@ -127,19 +115,13 @@ def load_tile_map_actors(tmx_name, scale=1):
                 tileset = tilesets[ts_firstgid]
                 local_id = tile_gid - ts_firstgid
 
-                tx = tileset["margin"] + (local_id % tileset["sheet_w"]) * (
-                    tileset["tile_width"] + tileset["spacing"]
-                )
+                tx = tileset["margin"] + (local_id % tileset["sheet_w"]) * (tileset["tile_width"] + tileset["spacing"])
                 ty = tileset["margin"] + (local_id // tileset["sheet_w"]) * (
                     tileset["tile_height"] + tileset["spacing"]
                 )
 
                 tile_surface = (
-                    tileset["image"]
-                    .subsurface(
-                        (tx, ty, tileset["tile_width"], tileset["tile_height"])
-                    )
-                    .copy()
+                    tileset["image"].subsurface((tx, ty, tileset["tile_width"], tileset["tile_height"])).copy()
                 )
 
                 tile_scale_x = map_tile_width / tileset["tile_width"]

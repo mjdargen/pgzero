@@ -4,14 +4,13 @@ This is a Pygame implementation of a scheduler inspired by the clock
 classes in Pyglet.
 
 """
+
 import heapq
 from weakref import ref
 from functools import total_ordering
 from types import MethodType
 
-__all__ = [
-    'Clock', 'schedule', 'schedule_interval', 'unschedule'
-]
+__all__ = ["Clock", "schedule", "schedule_interval", "unschedule", "clear"]
 
 # This type can't be weakreffed in Python 3.4
 builtin_function_or_method = type(open)
@@ -28,6 +27,7 @@ def weak_method(method):
         if self is None or func is None:
             return None
         return func.__get__(self)
+
     return weakref
 
 
@@ -133,11 +133,7 @@ class Clock:
         If scheduled multiple times all instances will be unscheduled.
 
         """
-        self.events = [
-            e for e in self.events
-            if e.callback != callback
-            if e.callback is not None
-        ]
+        self.events = [e for e in self.events if e.callback != callback if e.callback is not None]
         heapq.heapify(self.events)
         self._each_tick = [e for e in self._each_tick if e() != callback]
 
@@ -160,6 +156,7 @@ class Clock:
                     cb(dt)
                 except Exception:
                     import traceback
+
                     traceback.print_exc()
                     dead.append(cb)
         self._each_tick = [e for e in self._each_tick if e() not in dead]
@@ -187,6 +184,7 @@ class Clock:
                 cb()
             except Exception:
                 import traceback
+
                 traceback.print_exc()
                 self.unschedule(cb)
 
@@ -199,3 +197,4 @@ schedule_interval = clock.schedule_interval
 schedule_unique = clock.schedule_unique
 unschedule = clock.unschedule
 each_tick = clock.each_tick
+clear = clock.clear

@@ -73,8 +73,7 @@ def validate_compatible_path(path):
     if real_rel != relpath:
         raise InvalidCase(
             "%s is mis-capitalised on disk as %r.\nYou should rename it to be "
-            "correctly lowercase, for cross-platform portability."
-            % (relpath, real_rel)
+            "correctly lowercase, for cross-platform portability." % (relpath, real_rel)
         )
 
 
@@ -90,6 +89,8 @@ class ResourceLoader:
 
     """
 
+    SKIP_CASE_VALIDATION = False
+
     def __init__(self, subpath):
         self._subpath = subpath
         self._cache = {}
@@ -98,14 +99,14 @@ class ResourceLoader:
     def validate_root(self, name):
         r = self._root()
         self._have_root = os.path.exists(r)
+
         if self._have_root:
-            validate_compatible_path(r)
+            if not self.SKIP_CASE_VALIDATION:
+                validate_compatible_path(r)
         else:
             raise KeyError(
                 "No '{subpath}' directory found to load {type} "
-                "'{name}'.".format(
-                    subpath=self._subpath, type=self.TYPE, name=name
-                )
+                "'{name}'.".format(subpath=self._subpath, type=self.TYPE, name=name)
             )
 
     def _root(self):
@@ -118,11 +119,13 @@ class ResourceLoader:
 
     def load(self, name, *args, **kwargs):
         key = self.cache_key(name, args, kwargs)
+
         if key in self._cache:
             return self._cache[key]
 
         if not self._have_root:
             self.validate_root(name)
+
         p = os.path.join(self._root(), name)
 
         if not os.path.isfile(p):
@@ -133,12 +136,12 @@ class ResourceLoader:
             else:
                 raise KeyError(
                     "No {type} found like '{name}'. "
-                    "Are you sure the {type} exists?".format(
-                        type=self.TYPE, name=name
-                    )
+                    "Are you sure the {type} exists?".format(type=self.TYPE, name=name)
                 )
 
-        validate_compatible_path(p)
+        if not self.SKIP_CASE_VALIDATION:
+            validate_compatible_path(p)
+
         res = self._cache[key] = self._load(p, *args, **kwargs)
         return res
 
@@ -164,16 +167,10 @@ class ResourceLoader:
         return resource
 
     def __dir__(self):
-        standard_attributes = [
-            key for key in self.__dict__.keys() if not key.startswith("_")
-        ]
+        standard_attributes = [key for key in self.__dict__.keys() if not key.startswith("_")]
         resources = os.listdir(self._root())
         resource_names = [os.path.splitext(r) for r in resources]
-        loadable_names = [
-            name
-            for name, ext in resource_names
-            if name.isidentifier() and ext[1:] in self.EXTNS
-        ]
+        loadable_names = [name for name, ext in resource_names if name.isidentifier() and ext[1:] in self.EXTNS]
         return standard_attributes + loadable_names
 
 
@@ -218,8 +215,7 @@ class SoundLoader(ResourceLoader):
             except Exception:
                 pass
             else:
-                raise UnsupportedFormat(
-                    """
+                raise UnsupportedFormat("""
 '{0}' is not in a supported audio format.
 
 It appears to be:
@@ -230,10 +226,7 @@ Pygame supports only uncompressed WAV files (PCM or ADPCM) and compressed
 Ogg Vorbis files. Try re-encoding the sound file, for example using Audacity:
 
     http://audacityteam.org/
-""".format(
-                        path, fmt
-                    ).strip()
-                ) from None
+""".format(path, fmt).strip()) from None
             raise
 
     def __repr__(self):
@@ -252,9 +245,14 @@ class FontLoader(ResourceLoader):
         return pygame.font.Font(path, fontsize or ptext.DEFAULT_FONT_SIZE)
 
 
+class MapImageLoader(ImageLoader):
+    SKIP_CASE_VALIDATION = True
+
+
 class TextLoader(ResourceLoader):
     EXTNS = ["tmx", "tsx"]
     TYPE = "map file"
+    SKIP_CASE_VALIDATION = True
 
     def _load(self, path):
         with open(path, "r", encoding="utf-8") as f:
@@ -263,7 +261,7 @@ class TextLoader(ResourceLoader):
 
 images = ImageLoader("images")
 sprites = ImageLoader("sprites")
-mapimages = ImageLoader("maps")
+mapimages = MapImageLoader("maps")
 maps = TextLoader("maps")
 sounds = SoundLoader("sounds")
 fonts = FontLoader("fonts")
