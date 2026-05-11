@@ -13,7 +13,7 @@ from .rect import Rect, ZRect
 from .loaders import images, sounds
 from .constants import mouse, keys, keymods
 from .game import Game, exit
-from .tilemaps import load_tile_map_actors
+from .tilemaps import load_tile_map_actors, set_actor_tile
 
 # The actual screen will be installed here
 from .screen import screen_instance as screen
@@ -44,4 +44,5 @@ __all__ = [
     "game",
     "exit",
     "load_tile_map_actors",
+    "set_actor_tile",
 ]

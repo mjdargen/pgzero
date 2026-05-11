@@ -7,7 +7,6 @@ from . import loaders
 from . import rect
 from . import spellcheck
 
-
 ANCHORS = {
     "x": {
         "left": 0.0,
@@ -77,6 +76,18 @@ def transform_anchor(ax, ay, w, h, angle):
     return (tw * 0.5 + rax, th * 0.5 + ray)
 
 
+def rotate_vector(x, y, angle):
+    """Rotate a vector using the same rotation convention as pygame surfaces."""
+    theta = -radians(angle)
+    sintheta = sin(theta)
+    costheta = cos(theta)
+
+    return (
+        x * costheta - y * sintheta,
+        x * sintheta + y * costheta,
+    )
+
+
 def _set_opacity(actor, current_surface):
     alpha = int(actor.opacity * MAX_ALPHA + 0.5)
 
@@ -137,7 +148,6 @@ class Actor:
     direction = 0
     _sprite = None
     _collision_rect_spec = None
-    _collision_rect = None
 
     def _build_transformed_surf(self):
         cache_len = len(self._surface_cache)
@@ -159,12 +169,10 @@ class Actor:
         self._surface_cache = []
         self.__dict__["_rect"] = rect.ZRect((0, 0), (0, 0))
         self._collision_rect_spec = collision_rect
-        self._collision_rect = None
         self._mask = None
 
         self.image = image
         self._init_position(pos, anchor, **kwargs)
-        self._update_collision_rect()
 
     def __getattr__(self, attr):
         if attr in self.__class__.DELEGATED_ATTRIBUTES:
@@ -230,6 +238,52 @@ class Actor:
         else:
             raise IndexError("function {!r} does not have a registered order." "".format(function))
 
+    def _body_spec(self):
+        """Return the unscaled body as (width, height, offset_x, offset_y).
+
+        The body is the actor's authoritative rectangle. All position anchors,
+        symbolic positions, and collision checks are based on this rectangle.
+
+        collision_rect formats:
+        - None: use the full image as the body
+        - (width, height): centered body
+        - (width, height, offset_x, offset_y): body center offset from image center
+        """
+        image_w, image_h = self._orig_surf.get_size()
+
+        if self._collision_rect_spec is None:
+            return float(image_w), float(image_h), 0.0, 0.0
+
+        if len(self._collision_rect_spec) == 2:
+            width, height = self._collision_rect_spec
+            return float(width), float(height), 0.0, 0.0
+
+        if len(self._collision_rect_spec) == 4:
+            width, height, offset_x, offset_y = self._collision_rect_spec
+            return float(width), float(height), float(offset_x), float(offset_y)
+
+        raise ValueError("collision_rect must be None, (width, height), or " "(width, height, offset_x, offset_y).")
+
+    def _transformed_body_size(self):
+        body_w, body_h, _, _ = self._body_spec()
+
+        w = body_w * self._scale
+        h = body_h * self._scale
+
+        if self._flip_d:
+            w, h = h, w
+
+        if self._angle != 0.0:
+            ra = radians(self._angle)
+            sin_a = sin(ra)
+            cos_a = cos(ra)
+            return (
+                abs(w * cos_a) + abs(h * sin_a),
+                abs(w * sin_a) + abs(h * cos_a),
+            )
+
+        return w, h
+
     @property
     def anchor(self):
         return self._anchor_value
@@ -240,45 +294,33 @@ class Actor:
         self._calc_anchor()
 
     def _calc_anchor(self):
-        ax, ay = self._anchor_value
-        ow, oh = self._orig_surf.get_size()
+        if not hasattr(self, "_orig_surf"):
+            return
 
-        ax = calculate_anchor(ax, "x", ow)
-        ay = calculate_anchor(ay, "y", oh)
+        ax, ay = self._anchor_value
+        body_w, body_h, _, _ = self._body_spec()
+
+        ax = calculate_anchor(ax, "x", body_w)
+        ay = calculate_anchor(ay, "y", body_h)
         self._untransformed_anchor = ax, ay
 
-        transformed_w = ow * self._scale
-        transformed_h = oh * self._scale
+        transformed_w = body_w * self._scale
+        transformed_h = body_h * self._scale
+
+        anchor_x = ax * self._scale
+        anchor_y = ay * self._scale
 
         if self._flip_d:
+            anchor_x, anchor_y = transform_anchor(
+                anchor_x,
+                anchor_y,
+                body_w * self._scale,
+                body_h * self._scale,
+                -90,
+            )
             transformed_w, transformed_h = transformed_h, transformed_w
 
-        if self._angle == 0.0:
-            self._anchor = (
-                ax * self._scale,
-                ay * self._scale,
-            )
-            if self._flip_d:
-                self._anchor = transform_anchor(
-                    ax * self._scale,
-                    ay * self._scale,
-                    ow * self._scale,
-                    oh * self._scale,
-                    -90,
-                )
-        else:
-            anchor_x = ax * self._scale
-            anchor_y = ay * self._scale
-
-            if self._flip_d:
-                anchor_x, anchor_y = transform_anchor(
-                    anchor_x,
-                    anchor_y,
-                    ow * self._scale,
-                    oh * self._scale,
-                    -90,
-                )
-
+        if self._angle != 0.0:
             self._anchor = transform_anchor(
                 anchor_x,
                 anchor_y,
@@ -286,6 +328,8 @@ class Actor:
                 transformed_h,
                 self._angle,
             )
+        else:
+            self._anchor = anchor_x, anchor_y
 
     @property
     def angle(self):
@@ -293,12 +337,11 @@ class Actor:
 
     @angle.setter
     def angle(self, angle):
-        self._angle = angle
         p = self.pos
+        self._angle = angle
         self._update_pos()
         self.pos = p
         self._update_transform(_set_angle)
-        self._update_collision_rect()
 
     @property
     def opacity(self):
@@ -316,12 +359,11 @@ class Actor:
 
     @scale.setter
     def scale(self, scale):
-        self._scale = scale
         p = self.pos
+        self._scale = scale
         self._update_pos()
         self.pos = p
         self._update_transform(_set_scale)
-        self._update_collision_rect()
 
     @property
     def flip_h(self):
@@ -329,12 +371,11 @@ class Actor:
 
     @flip_h.setter
     def flip_h(self, value):
-        self._flip_h = value
         p = self.pos
+        self._flip_h = value
         self._update_pos()
         self.pos = p
         self._update_transform(_set_flip)
-        self._update_collision_rect()
 
     @property
     def flip_v(self):
@@ -342,12 +383,11 @@ class Actor:
 
     @flip_v.setter
     def flip_v(self, value):
-        self._flip_v = value
         p = self.pos
+        self._flip_v = value
         self._update_pos()
         self.pos = p
         self._update_transform(_set_flip)
-        self._update_collision_rect()
 
     @property
     def flip_d(self):
@@ -355,12 +395,11 @@ class Actor:
 
     @flip_d.setter
     def flip_d(self, value):
-        self._flip_d = value
         p = self.pos
+        self._flip_d = value
         self._update_pos()
         self.pos = p
         self._update_transform(_set_flip)
-        self._update_collision_rect()
 
     @property
     def pos(self):
@@ -412,35 +451,68 @@ class Actor:
 
         self._surface_cache.clear()
         self._update_pos()
-        self._update_collision_rect()
 
     def _update_pos(self):
+        if not hasattr(self, "_orig_surf"):
+            return
+
         p = getattr(self, "pos", (0, 0))
 
-        base_w, base_h = self._orig_surf.get_size()
-        w = base_w * self._scale
-        h = base_h * self._scale
-
-        if self._flip_d:
-            w, h = h, w
-
-        if self._angle != 0.0:
-            ra = radians(self._angle)
-            sin_a = sin(ra)
-            cos_a = cos(ra)
-            self.height = abs(w * sin_a) + abs(h * cos_a)
-            self.width = abs(w * cos_a) + abs(h * sin_a)
-        else:
-            self.width = w
-            self.height = h
+        self.width, self.height = self._transformed_body_size()
 
         self._calc_anchor()
         self.pos = p
 
-    def draw(self):
-        self._update_collision_rect()
+    def _image_center_offset_from_body_center(self):
+        _, _, offset_x, offset_y = self._body_spec()
+
+        # offset_x / offset_y describe the body center compared to the image
+        # center, before scale or transforms. To draw the image, we need the
+        # opposite vector: image center compared to body center.
+        x = -offset_x * self._scale
+        y = -offset_y * self._scale
+
+        # The diagonal flip used by Tiled/Pygame here acts like swapping x/y
+        # around the body's center.
+        if self._flip_d:
+            x, y = y, x
+
+        if self._flip_h:
+            x = -x
+
+        if self._flip_v:
+            y = -y
+
+        if self._angle != 0.0:
+            x, y = rotate_vector(x, y, self._angle)
+
+        return x, y
+
+    def _image_topleft(self):
         s = self._build_transformed_surf()
-        game.screen.blit(s, self.topleft)
+        image_offset_x, image_offset_y = self._image_center_offset_from_body_center()
+        body_cx, body_cy = self.center
+
+        return (
+            body_cx + image_offset_x - s.get_width() / 2,
+            body_cy + image_offset_y - s.get_height() / 2,
+        )
+
+    def _move_body_to_preserve_image_topleft(self, image_topleft):
+        s = self._build_transformed_surf()
+        image_offset_x, image_offset_y = self._image_center_offset_from_body_center()
+
+        image_cx = image_topleft[0] + s.get_width() / 2
+        image_cy = image_topleft[1] + s.get_height() / 2
+
+        self.center = (
+            image_cx - image_offset_x,
+            image_cy - image_offset_y,
+        )
+
+    def draw(self):
+        s = self._build_transformed_surf()
+        game.screen.blit(s, self._image_topleft())
 
     @property
     def images(self):
@@ -476,48 +548,13 @@ class Actor:
     def sprite(self, sprite):
         self._sprite = sprite
 
-    def _update_collision_rect(self):
-        if self._collision_rect_spec is None:
-            self._collision_rect = self._rect.copy()
-        elif len(self._collision_rect_spec) == 2:
-            cw, ch = self._collision_rect_spec
-            cw *= self._scale
-            ch *= self._scale
-            cx, cy = self.center
-            tlx = cx - cw / 2
-            tly = cy - ch / 2
-            self._collision_rect = rect.ZRect(tlx, tly, cw, ch)
-        elif len(self._collision_rect_spec) == 4:
-            ox, oy, width, height = self._collision_rect_spec
-
-            ox *= self._scale
-            oy *= self._scale
-            width *= self._scale
-            height *= self._scale
-
-            cx, cy = self.center
-
-            # shift from center, then convert to topleft
-            left = cx + ox - width / 2
-            top = cy + oy - height / 2
-
-            self._collision_rect = rect.ZRect(left, top, width, height)
-        else:
-            raise ValueError(
-                "Invalid collision_rect_spec format. " "Use (width, height) or (offset_x, offset_y, width, height)."
-            )
-
     def colliderect(self, other):
-        my_rect = self._rect if self._collision_rect_spec is None else self._collision_rect
-
-        if hasattr(other, "_collision_rect_spec") and other._collision_rect_spec is not None:
-            other_rect = other._collision_rect
-        elif hasattr(other, "_rect"):
+        if hasattr(other, "_rect"):
             other_rect = other._rect
         else:
             other_rect = other
 
-        return my_rect.colliderect(other_rect)
+        return self._rect.colliderect(other_rect)
 
     def collidelist(self, others):
         for n, other in enumerate(others):
@@ -526,19 +563,27 @@ class Actor:
         return -1
 
     def collidepoint(self, *args):
-        r = self._rect if self._collision_rect_spec is None else self._collision_rect
-        return r.collidepoint(*args)
+        return self._rect.collidepoint(*args)
 
     @property
     def collision_rect(self):
-        if self._collision_rect_spec is None:
-            return self._rect
-        return self._collision_rect
+        return self._rect
 
     @collision_rect.setter
     def collision_rect(self, value):
+        if value is not None and len(value) not in (2, 4):
+            raise ValueError("collision_rect must be None, (width, height), or " "(width, height, offset_x, offset_y).")
+
+        old_image_topleft = self._image_topleft() if hasattr(self, "_orig_surf") else None
+
         self._collision_rect_spec = value
-        self._update_collision_rect()
+        self._update_pos()
+
+        # Changing the body should not make the image appear to jump.
+        # The body moves to match the new collision rectangle, while the
+        # already-drawn image stays in the same visual place.
+        if old_image_topleft is not None:
+            self._move_body_to_preserve_image_topleft(old_image_topleft)
 
     def draw_collision_rect(self):
         r = self.collision_rect

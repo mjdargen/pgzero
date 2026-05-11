@@ -23,6 +23,52 @@ def _resolve_relative_map_path(base_name, relative_path):
     return relative_path
 
 
+def _get_tile_surface(tileset, tile_col, tile_row, map_tile_width, map_tile_height):
+    tx = tileset["margin"] + tile_col * (tileset["tile_width"] + tileset["spacing"])
+    ty = tileset["margin"] + tile_row * (tileset["tile_height"] + tileset["spacing"])
+
+    tile_surface = tileset["image"].subsurface((tx, ty, tileset["tile_width"], tileset["tile_height"])).copy()
+
+    tile_scale_x = map_tile_width / tileset["tile_width"]
+    tile_scale_y = map_tile_height / tileset["tile_height"]
+
+    scaled_size = (
+        int(round(tileset["tile_width"] * tile_scale_x)),
+        int(round(tileset["tile_height"] * tile_scale_y)),
+    )
+
+    return pygame.transform.scale(tile_surface, scaled_size)
+
+
+def set_actor_tile(actor, tile_col, tile_row):
+    """
+    Change which tile image this actor is showing.
+
+    tile_col and tile_row refer to the tile's position in the tileset image,
+    not its position in the map.
+    """
+    tileset = actor._tileset
+
+    if tile_col < 0 or tile_col >= tileset["sheet_w"]:
+        raise ValueError(f"tile_col must be between 0 and {tileset['sheet_w'] - 1}")
+
+    if tile_row < 0 or tile_row >= tileset["sheet_h"]:
+        raise ValueError(f"tile_row must be between 0 and {tileset['sheet_h'] - 1}")
+
+    actor.image = _get_tile_surface(
+        tileset,
+        tile_col,
+        tile_row,
+        actor._map_tile_width,
+        actor._map_tile_height,
+    )
+
+    actor.tile_col = tile_col
+    actor.tile_row = tile_row
+    actor.tile_id = tile_row * tileset["sheet_w"] + tile_col
+    actor.tile_gid = actor.tileset_firstgid + actor.tile_id
+
+
 def _load_tilesets(root, tmx_name):
     tilesets = {}
 
@@ -115,29 +161,36 @@ def load_tile_map_actors(tmx_name, scale=1):
                 tileset = tilesets[ts_firstgid]
                 local_id = tile_gid - ts_firstgid
 
-                tx = tileset["margin"] + (local_id % tileset["sheet_w"]) * (tileset["tile_width"] + tileset["spacing"])
-                ty = tileset["margin"] + (local_id // tileset["sheet_w"]) * (
-                    tileset["tile_height"] + tileset["spacing"]
-                )
+                tile_col = local_id % tileset["sheet_w"]
+                tile_row = local_id // tileset["sheet_w"]
 
-                tile_surface = (
-                    tileset["image"].subsurface((tx, ty, tileset["tile_width"], tileset["tile_height"])).copy()
+                tile_surface = _get_tile_surface(
+                    tileset,
+                    tile_col,
+                    tile_row,
+                    map_tile_width,
+                    map_tile_height,
                 )
-
-                tile_scale_x = map_tile_width / tileset["tile_width"]
-                tile_scale_y = map_tile_height / tileset["tile_height"]
-
-                scaled_size = (
-                    int(round(tileset["tile_width"] * tile_scale_x)),
-                    int(round(tileset["tile_height"] * tile_scale_y)),
-                )
-                tile_surface = pygame.transform.scale(tile_surface, scaled_size)
 
                 actor = Actor(tile_surface)
                 actor.scale = scale
                 actor.flip_h = flipped_h
                 actor.flip_v = flipped_v
                 actor.flip_d = flipped_d
+
+                actor.map_col = col
+                actor.map_row = row
+
+                actor.tile_col = tile_col
+                actor.tile_row = tile_row
+                actor.tile_id = local_id
+                actor.tile_gid = tile_gid
+                actor.tileset_firstgid = ts_firstgid
+
+                actor._tileset = tileset
+                actor._map_tile_width = map_tile_width
+                actor._map_tile_height = map_tile_height
+
                 actor.topleft = (
                     map_tile_width * col * scale,
                     map_tile_height * row * scale,
