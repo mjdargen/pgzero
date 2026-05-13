@@ -23,11 +23,36 @@ def _resolve_relative_map_path(base_name, relative_path):
     return relative_path
 
 
+def _count_tiles_that_fit(image_length, tile_length, margin, spacing):
+    """
+    Count how many tiles fit in one direction of a Tiled tileset image.
+
+    In Tiled, margin is the offset from the top/left edge to the first tile.
+    It is not necessarily repeated on the far right/bottom edge. Any extra
+    pixels after the final tile are just unused image space.
+    """
+    if tile_length <= 0:
+        raise ValueError("tile_length must be greater than 0")
+
+    if margin < 0:
+        raise ValueError("margin cannot be negative")
+
+    if spacing < 0:
+        raise ValueError("spacing cannot be negative")
+
+    usable_length = image_length - margin
+    if usable_length < tile_length:
+        return 0
+
+    return (usable_length + spacing) // (tile_length + spacing)
+
+
 def _get_tile_surface(tileset, tile_col, tile_row, map_tile_width, map_tile_height):
     tx = tileset["margin"] + tile_col * (tileset["tile_width"] + tileset["spacing"])
     ty = tileset["margin"] + tile_row * (tileset["tile_height"] + tileset["spacing"])
 
-    tile_surface = tileset["image"].subsurface((tx, ty, tileset["tile_width"], tileset["tile_height"])).copy()
+    tile_rect = (tx, ty, tileset["tile_width"], tileset["tile_height"])
+    tile_surface = tileset["image"].subsurface(tile_rect).copy()
 
     tile_scale_x = map_tile_width / tileset["tile_width"]
     tile_scale_y = map_tile_height / tileset["tile_height"]
@@ -48,12 +73,22 @@ def set_actor_tile(actor, tile_col, tile_row):
     not its position in the map.
     """
     tileset = actor._tileset
+    columns = tileset["columns"]
+    rows = tileset["rows"]
+    tile_count = tileset["tile_count"]
 
-    if tile_col < 0 or tile_col >= tileset["sheet_w"]:
-        raise ValueError(f"tile_col must be between 0 and {tileset['sheet_w'] - 1}")
+    if tile_col < 0 or tile_col >= columns:
+        raise ValueError(f"tile_col must be between 0 and {columns - 1}")
 
-    if tile_row < 0 or tile_row >= tileset["sheet_h"]:
-        raise ValueError(f"tile_row must be between 0 and {tileset['sheet_h'] - 1}")
+    if tile_row < 0 or tile_row >= rows:
+        raise ValueError(f"tile_row must be between 0 and {rows - 1}")
+
+    tile_id = tile_row * columns + tile_col
+    if tile_id >= tile_count:
+        raise ValueError(
+            f"tile_col={tile_col}, tile_row={tile_row} points past the tileset's "
+            f"last tile. This tileset has {tile_count} tiles."
+        )
 
     actor.image = _get_tile_surface(
         tileset,
@@ -65,7 +100,7 @@ def set_actor_tile(actor, tile_col, tile_row):
 
     actor.tile_col = tile_col
     actor.tile_row = tile_row
-    actor.tile_id = tile_row * tileset["sheet_w"] + tile_col
+    actor.tile_id = tile_id
     actor.tile_gid = actor.tileset_firstgid + actor.tile_id
 
 
@@ -78,17 +113,18 @@ def _load_tilesets(root, tmx_name):
         if "source" in ts.attrib:
             tsx_name = _resolve_relative_map_path(tmx_name, ts.attrib["source"])
             ts_root = _load_xml_from_maps(tsx_name)
+            tileset_base_name = tsx_name
         else:
             ts_root = ts
+            tileset_base_name = tmx_name
 
         image = ts_root.find("image")
         if image is None:
             raise ValueError("Tileset is missing an <image> tag")
 
-        image_name = _resolve_relative_map_path(
-            os.path.dirname(tmx_name) if "/" in tmx_name else "",
-            image.attrib["source"],
-        )
+        # For external TSX files, the image path is relative to the TSX file,
+        # not necessarily the TMX map that imports it.
+        image_name = _resolve_relative_map_path(tileset_base_name, image.attrib["source"])
         tilesheet = loaders.mapimages.load(image_name)
 
         tile_width = int(ts_root.attrib["tilewidth"])
@@ -96,15 +132,48 @@ def _load_tilesets(root, tmx_name):
         spacing = int(ts_root.attrib.get("spacing", 0))
         margin = int(ts_root.attrib.get("margin", 0))
 
-        sheet_w = (tilesheet.get_width() - 2 * margin + spacing) // (tile_width + spacing)
-        sheet_h = (tilesheet.get_height() - 2 * margin + spacing) // (tile_height + spacing)
+        calculated_columns = _count_tiles_that_fit(
+            tilesheet.get_width(),
+            tile_width,
+            margin,
+            spacing,
+        )
+        calculated_rows = _count_tiles_that_fit(
+            tilesheet.get_height(),
+            tile_height,
+            margin,
+            spacing,
+        )
+
+        # Tiled writes columns and tilecount into image-based TSX tilesets.
+        # Use those values when present because they exactly describe how Tiled
+        # assigned local tile ids. Fall back to image-based calculation for
+        # older or hand-written files.
+        columns = int(ts_root.attrib.get("columns", calculated_columns))
+        if columns <= 0:
+            columns = calculated_columns
+
+        if columns <= 0:
+            raise ValueError("Tileset does not contain any columns of tiles")
+
+        tile_count = int(ts_root.attrib.get("tilecount", columns * calculated_rows))
+        rows = (tile_count + columns - 1) // columns
+
+        if tile_count <= 0:
+            raise ValueError("Tileset does not contain any tiles")
 
         tilesets[firstgid] = {
             "image": tilesheet,
+            "image_name": image_name,
             "tile_width": tile_width,
             "tile_height": tile_height,
-            "sheet_w": sheet_w,
-            "sheet_h": sheet_h,
+            "columns": columns,
+            "rows": rows,
+            "tile_count": tile_count,
+            # Keep these aliases so older student code that checks sheet_w or
+            # sheet_h does not immediately break.
+            "sheet_w": columns,
+            "sheet_h": rows,
             "spacing": spacing,
             "margin": margin,
         }
@@ -161,8 +230,13 @@ def load_tile_map_actors(tmx_name, scale=1):
                 tileset = tilesets[ts_firstgid]
                 local_id = tile_gid - ts_firstgid
 
-                tile_col = local_id % tileset["sheet_w"]
-                tile_row = local_id // tileset["sheet_w"]
+                if local_id >= tileset["tile_count"]:
+                    raise ValueError(
+                        f"Tile gid {tile_gid} points past the end of tileset " f"starting at firstgid {ts_firstgid}."
+                    )
+
+                tile_col = local_id % tileset["columns"]
+                tile_row = local_id // tileset["columns"]
 
                 tile_surface = _get_tile_surface(
                     tileset,
