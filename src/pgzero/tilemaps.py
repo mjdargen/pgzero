@@ -11,42 +11,6 @@ FLIP_D = 0x20000000
 GID_MASK = 0x0FFFFFFF
 
 
-def _load_xml_from_maps(name):
-    text = loaders.maps.load(name)
-    return ET.fromstring(text)
-
-
-def _resolve_relative_map_path(base_name, relative_path):
-    base_dir = os.path.dirname(base_name)
-    if base_dir:
-        return os.path.normpath(os.path.join(base_dir, relative_path)).replace("\\", "/")
-    return relative_path
-
-
-def _count_tiles_that_fit(image_length, tile_length, margin, spacing):
-    """
-    Count how many tiles fit in one direction of a Tiled tileset image.
-
-    In Tiled, margin is the offset from the top/left edge to the first tile.
-    It is not necessarily repeated on the far right/bottom edge. Any extra
-    pixels after the final tile are just unused image space.
-    """
-    if tile_length <= 0:
-        raise ValueError("tile_length must be greater than 0")
-
-    if margin < 0:
-        raise ValueError("margin cannot be negative")
-
-    if spacing < 0:
-        raise ValueError("spacing cannot be negative")
-
-    usable_length = image_length - margin
-    if usable_length < tile_length:
-        return 0
-
-    return (usable_length + spacing) // (tile_length + spacing)
-
-
 def _get_tile_surface(tileset, tile_col, tile_row, map_tile_width, map_tile_height):
     tx = tileset["margin"] + tile_col * (tileset["tile_width"] + tileset["spacing"])
     ty = tileset["margin"] + tile_row * (tileset["tile_height"] + tileset["spacing"])
@@ -104,6 +68,142 @@ def set_actor_tile(actor, tile_col, tile_row):
     actor.tile_gid = actor.tileset_firstgid + actor.tile_id
 
 
+class Tile(Actor):
+    def __init__(
+        self,
+        tileset,
+        tileset_firstgid,
+        tile_col,
+        tile_row,
+        map_col,
+        map_row,
+        map_tile_width,
+        map_tile_height,
+        scale=1.0,
+        flip_h=False,
+        flip_v=False,
+        flip_d=False,
+    ):
+        self._tileset = tileset
+        self.tileset_firstgid = tileset_firstgid
+        self._map_tile_width = map_tile_width
+        self._map_tile_height = map_tile_height
+
+        tile_surface = _get_tile_surface(
+            tileset,
+            tile_col,
+            tile_row,
+            map_tile_width,
+            map_tile_height,
+        )
+
+        super().__init__(tile_surface)
+
+        self.scale = scale
+        self.flip_h = flip_h
+        self.flip_v = flip_v
+        self.flip_d = flip_d
+
+        self.set_tile_image(tile_col, tile_row)
+        self.set_map_position(map_col, map_row)
+
+    def set_tile_image(self, tile_col, tile_row):
+        columns = self._tileset["columns"]
+        rows = self._tileset["rows"]
+        tile_count = self._tileset["tile_count"]
+
+        if tile_col < 0 or tile_col >= columns:
+            raise ValueError(f"tile_col must be between 0 and {columns - 1}")
+
+        if tile_row < 0 or tile_row >= rows:
+            raise ValueError(f"tile_row must be between 0 and {rows - 1}")
+
+        tile_id = tile_row * columns + tile_col
+
+        if tile_id >= tile_count:
+            raise ValueError(f"tile_col={tile_col}, tile_row={tile_row} points past the tileset's last tile.")
+
+        self.image = _get_tile_surface(
+            self._tileset,
+            tile_col,
+            tile_row,
+            self._map_tile_width,
+            self._map_tile_height,
+        )
+
+        self.tile_col = tile_col
+        self.tile_row = tile_row
+        self.tile_id = tile_id
+        self.tile_gid = self.tileset_firstgid + self.tile_id
+
+    def set_map_position(self, map_col, map_row):
+        self.map_col = map_col
+        self.map_row = map_row
+
+        self.topleft = (
+            self._map_tile_width * map_col * self.scale,
+            self._map_tile_height * map_row * self.scale,
+        )
+
+    def copy(self, map_col=None, map_row=None):
+        if map_col is None:
+            map_col = self.map_col
+
+        if map_row is None:
+            map_row = self.map_row
+
+        return Tile(
+            tileset=self._tileset,
+            tileset_firstgid=self.tileset_firstgid,
+            tile_col=self.tile_col,
+            tile_row=self.tile_row,
+            map_col=map_col,
+            map_row=map_row,
+            map_tile_width=self._map_tile_width,
+            map_tile_height=self._map_tile_height,
+            scale=self.scale,
+            flip_h=self.flip_h,
+            flip_v=self.flip_v,
+            flip_d=self.flip_d,
+        )
+
+
+def _load_xml_from_maps(name):
+    text = loaders.maps.load(name)
+    return ET.fromstring(text)
+
+
+def _resolve_relative_map_path(base_name, relative_path):
+    base_dir = os.path.dirname(base_name)
+    if base_dir:
+        return os.path.normpath(os.path.join(base_dir, relative_path)).replace("\\", "/")
+    return relative_path
+
+
+def _count_tiles_that_fit(image_length, tile_length, margin, spacing):
+    """
+    Count how many tiles fit in one direction of a Tiled tileset image.
+
+    In Tiled, margin is the offset from the top/left edge to the first tile.
+    It is not necessarily repeated on the far right/bottom edge. Any extra
+    pixels after the final tile are just unused image space.
+    """
+    if tile_length <= 0:
+        raise ValueError("tile_length must be greater than 0")
+
+    if margin < 0:
+        raise ValueError("margin cannot be negative")
+
+    if spacing < 0:
+        raise ValueError("spacing cannot be negative")
+
+    usable_length = image_length - margin
+    if usable_length < tile_length:
+        return 0
+
+    return (usable_length + spacing) // (tile_length + spacing)
+
+
 def _load_tilesets(root, tmx_name):
     tilesets = {}
 
@@ -146,7 +246,7 @@ def _load_tilesets(root, tmx_name):
         )
 
         # Tiled writes columns and tilecount into image-based TSX tilesets.
-        # Use those values when present because they exactly describe how Tiled
+        # Use values when present because they exactly describe how Tiled
         # assigned local tile ids. Fall back to image-based calculation for
         # older or hand-written files.
         columns = int(ts_root.attrib.get("columns", calculated_columns))
@@ -238,39 +338,21 @@ def load_tile_map_actors(tmx_name, scale=1):
                 tile_col = local_id % tileset["columns"]
                 tile_row = local_id // tileset["columns"]
 
-                tile_surface = _get_tile_surface(
-                    tileset,
-                    tile_col,
-                    tile_row,
-                    map_tile_width,
-                    map_tile_height,
+                tile = Tile(
+                    tileset=tileset,
+                    tileset_firstgid=ts_firstgid,
+                    tile_col=tile_col,
+                    tile_row=tile_row,
+                    map_col=col,
+                    map_row=row,
+                    map_tile_width=map_tile_width,
+                    map_tile_height=map_tile_height,
+                    scale=scale,
+                    flip_h=flipped_h,
+                    flip_v=flipped_v,
+                    flip_d=flipped_d,
                 )
-
-                actor = Actor(tile_surface)
-                actor.scale = scale
-                actor.flip_h = flipped_h
-                actor.flip_v = flipped_v
-                actor.flip_d = flipped_d
-
-                actor.map_col = col
-                actor.map_row = row
-
-                actor.tile_col = tile_col
-                actor.tile_row = tile_row
-                actor.tile_id = local_id
-                actor.tile_gid = tile_gid
-                actor.tileset_firstgid = ts_firstgid
-
-                actor._tileset = tileset
-                actor._map_tile_width = map_tile_width
-                actor._map_tile_height = map_tile_height
-
-                actor.topleft = (
-                    map_tile_width * col * scale,
-                    map_tile_height * row * scale,
-                )
-
-                items.append(actor)
+                items.append(tile)
 
         layers_dict[name] = items
 

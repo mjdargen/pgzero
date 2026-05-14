@@ -25,10 +25,7 @@ class SpriteSheet:
         return [self.image_at(rect, color_key) for rect in rects]
 
     def load_strip(self, rect, image_count, color_key=None):
-        rects = [
-            (rect[0] + rect[2] * i, rect[1], rect[2], rect[3])
-            for i in range(image_count)
-        ]
+        rects = [(rect[0] + rect[2] * i, rect[1], rect[2], rect[3]) for i in range(image_count)]
         return self.images_at(rects, color_key)
 
 
@@ -42,6 +39,7 @@ class Sprite:
         frame_count,
         fps=10,
         transparent_color=None,
+        loop=True,
     ):
         self.image_name = image_name
         self.frame_width = frame_width
@@ -49,10 +47,28 @@ class Sprite:
         self.row_number = row_number
         self.frame_count = frame_count
         self.fps = fps
+        self.loop = loop
+        self.finished = False
         self.frame_index = 0
         self.last_update_time = pygame.time.get_ticks()
 
         ss = SpriteSheet(image_name)
+        sheet_width, sheet_height = ss.sheet.get_size()
+        if frame_height * (row_number + 1) > sheet_height:
+            raise ValueError(
+                f"Row {row_number} is outside the sprite sheet. "
+                f"The sheet is {sheet_width}x{sheet_height}, "
+                f"but row {row_number} with frame height {frame_height} "
+                f"would end at y={frame_height * (row_number + 1)}."
+            )
+        if frame_width * frame_count > sheet_width:
+            raise ValueError(
+                f"The requested frames go past the edge of the sprite sheet. "
+                f"The sheet is {sheet_width} pixels wide, but "
+                f"{frame_count} frames with width {frame_width} need "
+                f"{frame_width * frame_count} pixels."
+            )
+
         first_rect = (
             0,
             frame_height * row_number,
@@ -68,19 +84,46 @@ class Sprite:
     def image(self):
         return self.images[self.frame_index]
 
+    def copy(self):
+        return Sprite(
+            self.image_name,
+            self.frame_width,
+            self.frame_height,
+            self.row_number,
+            self.frame_count,
+            self.fps,
+        )
+
     def reset(self):
         self.frame_index = 0
         self.last_update_time = pygame.time.get_ticks()
 
+    def set_frame(self, frame_index):
+        if frame_index < 0 or frame_index >= len(self.images):
+            raise ValueError(f"Frame index {frame_index} is out of range")
+
+        self.frame_index = frame_index
+        self.last_update_time = pygame.time.get_ticks()
+        return self.image
+
     def next_frame(self):
+        if self.finished:
+            return self.image
+
         current_time = pygame.time.get_ticks()
         frame_duration_ms = 1000 / self.fps
 
         if current_time - self.last_update_time >= frame_duration_ms:
-            self.frame_index = (self.frame_index + 1) % len(self.images)
+            if self.frame_index < len(self.images) - 1:
+                self.frame_index += 1
+            elif self.loop:
+                self.frame_index = 0
+            else:
+                self.finished = True
+
             self.last_update_time = current_time
 
-        return self.images[self.frame_index]
+        return self.image
 
 
 class SpriteActor(Actor):
