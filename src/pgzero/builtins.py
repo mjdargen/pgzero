@@ -44,5 +44,4 @@ __all__ = [
     "game",
     "exit",
     "load_tile_map_actors",
-    "set_actor_tile",
 ]
