@@ -29,45 +29,6 @@ def _get_tile_surface(tileset, tile_col, tile_row, map_tile_width, map_tile_heig
     return pygame.transform.scale(tile_surface, scaled_size)
 
 
-def set_actor_tile(actor, tile_col, tile_row):
-    """
-    Change which tile image this actor is showing.
-
-    tile_col and tile_row refer to the tile's position in the tileset image,
-    not its position in the map.
-    """
-    tileset = actor._tileset
-    columns = tileset["columns"]
-    rows = tileset["rows"]
-    tile_count = tileset["tile_count"]
-
-    if tile_col < 0 or tile_col >= columns:
-        raise ValueError(f"tile_col must be between 0 and {columns - 1}")
-
-    if tile_row < 0 or tile_row >= rows:
-        raise ValueError(f"tile_row must be between 0 and {rows - 1}")
-
-    tile_id = tile_row * columns + tile_col
-    if tile_id >= tile_count:
-        raise ValueError(
-            f"tile_col={tile_col}, tile_row={tile_row} points past the tileset's "
-            f"last tile. This tileset has {tile_count} tiles."
-        )
-
-    actor.image = _get_tile_surface(
-        tileset,
-        tile_col,
-        tile_row,
-        actor._map_tile_width,
-        actor._map_tile_height,
-    )
-
-    actor.tile_col = tile_col
-    actor.tile_row = tile_row
-    actor.tile_id = tile_id
-    actor.tile_gid = actor.tileset_firstgid + actor.tile_id
-
-
 class Tile(Actor):
     def __init__(
         self,
