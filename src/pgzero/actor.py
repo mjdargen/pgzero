@@ -434,11 +434,14 @@ class Actor:
     def y(self, py):
         self.top = py - self._anchor[1]
 
+    # @property
+    # def image(self):
+    #     if self._image_name is not None:
+    #         return self._image_name
+    #     return self._orig_surf
     @property
-    def image(self):
-        if self._image_name is not None:
-            return self._image_name
-        return self._orig_surf
+    def image(self) -> str:
+        return self._image_name or ""
 
     @image.setter
     def image(self, image):
