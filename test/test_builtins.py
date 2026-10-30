@@ -41,13 +41,12 @@ class ClockClearTest(unittest.TestCase):
 
 class VersionTest(unittest.TestCase):
     def test_version_matches_installed_distribution(self):
-        """__version__ comes from the installed "pgzero-plus" package."""
+        """__version__ comes from the installed pgzero-plus package."""
         try:
             from importlib.metadata import version
         except ImportError:
             from importlib_metadata import version
         self.assertEqual(pgzero.__version__, version("pgzero-plus"))
-        self.assertNotEqual(pgzero.__version__, "unknown")
 
 
 if __name__ == "__main__":

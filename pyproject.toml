@@ -13,6 +13,7 @@ dependencies = [
     "pygame>=2.6.1",
     "numpy",
     "pyfxr>=0.3.0",
+    "importlib-metadata==4.8.3; python_version < '3.8'",
 ]
 keywords = ["pygame", "pgzero", "games", "education"]
 classifiers = [
