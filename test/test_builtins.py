@@ -1,4 +1,5 @@
 """Tests for names exported to games and other small module-level additions."""
+
 import unittest
 from unittest import mock
 
@@ -14,8 +15,7 @@ class BuiltinsTest(unittest.TestCase):
             self.assertTrue(hasattr(pgz_builtins, name), name)
 
     def test_new_exports(self):
-        for name in ["Sprite", "SpriteActor", "Game", "game",
-                     "load_tile_map_actors"]:
+        for name in ["Sprite", "SpriteActor", "Game", "game", "load_tile_map_actors"]:
             self.assertIn(name, pgz_builtins.__all__)
 
     def test_game_is_a_game(self):
@@ -27,8 +27,7 @@ class ClockClearTest(unittest.TestCase):
         self.assertIn("clear", clock.__all__)
         c = clock.Clock()
         cb = mock.Mock()
-        with mock.patch.object(clock, "clock", c), \
-                mock.patch.object(clock, "clear", c.clear):
+        with mock.patch.object(clock, "clock", c), mock.patch.object(clock, "clear", c.clear):
             c.schedule(cb, 1)
             c.each_tick(cb)
             clock.clear()
@@ -43,7 +42,10 @@ class ClockClearTest(unittest.TestCase):
 class VersionTest(unittest.TestCase):
     def test_version_matches_installed_distribution(self):
         """__version__ comes from the installed "pgzero-plus" package."""
-        from importlib.metadata import version
+        try:
+            from importlib.metadata import version
+        except ImportError:
+            from importlib_metadata import version
         self.assertEqual(pgzero.__version__, version("pgzero-plus"))
         self.assertNotEqual(pgzero.__version__, "unknown")
 
