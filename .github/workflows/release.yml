@@ -18,14 +18,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
-      - name: Verify the tag matches pyproject.toml
+      - name: Verify tag and project version
         run: |
-          python - <<'PY'
+          python - <<'PYTHON'
           import os
           import re
           import tomllib
@@ -38,16 +40,23 @@ jobs:
               project = tomllib.load(file)["project"]
 
           if project["name"] != "pgzero-plus":
-              raise SystemExit("Unexpected project name in pyproject.toml")
+              raise SystemExit("Unexpected package name")
           if project["version"] != tag[1:]:
               raise SystemExit(
                   f"Tag {tag} does not match pyproject.toml version {project['version']}"
               )
-          print(f"Building pgzero-plus {project['version']}")
-          PY
+          PYTHON
 
-      - name: Install dependencies
-        run: python -m pip install -e . pytest pre-commit build twine sphinx
+      - name: Require release commit to be on main
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::Release tag must point to a commit already merged into main."
+            exit 1
+          fi
+
+      - name: Install development dependencies
+        run: python -m pip install -r requirements-dev.txt
 
       - name: Run pre-commit checks
         run: python -m pre_commit run --all-files
@@ -71,9 +80,63 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
+  python-compatibility:
+    name: Python ${{ matrix.python-version }} wheel tests
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    env:
+      SDL_VIDEODRIVER: dummy
+      SDL_AUDIODRIVER: dummy
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: actions/download-artifact@v6
+        with:
+          name: release-distributions
+          path: dist/
+
+      - name: Install wheel and pytest
+        run: python -m pip install dist/*.whl pytest
+      - name: Check dependencies
+        run: python -m pip check
+      - name: Run tests against installed wheel
+        run: python -m pytest
+
+  python36-compatibility:
+    name: Python 3.6 wheel installation and imports
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          name: release-distributions
+          path: dist/
+
+      - name: Verify wheel under Python 3.6
+        run: |
+          docker run --rm \
+            -e SDL_VIDEODRIVER=dummy \
+            -e SDL_AUDIODRIVER=dummy \
+            -v "$PWD/dist:/dist:ro" \
+            -w /tmp \
+            python:3.6 /bin/sh -c '
+              set -eu
+              python -m pip install --only-binary=:all: /dist/*.whl
+              python -m pip check
+              python -c "import pgzero, pgzrun; from pgzero.builtins import Actor, SpriteActor, Game"
+            '
+
   publish:
     name: Publish to PyPI
-    needs: build
+    needs: [build, python-compatibility, python36-compatibility]
     runs-on: ubuntu-latest
     environment:
       name: pypi

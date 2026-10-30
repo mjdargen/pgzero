@@ -207,6 +207,54 @@ class ScreenTest(unittest.TestCase):
         self.screen.draw.filled_rect(rect=Rect((0, 0), (100, 100)), color=yellow)
         assert_screen_match(self.surf, 'filled_rect')
 
+    def test_rect_positional_color(self):
+        """rect(rect, color) still works with a positional colour."""
+        yellow = (255, 255, 0)
+        self.screen.draw.rect(Rect((20, 20), (100, 100)), yellow, width=9)
+        assert_screen_match(self.surf, 'rect')
+
+    def test_rect_pos_size_form(self):
+        """We can draw a rectangle from ((x, y), (w, h), color)."""
+        yellow = (255, 255, 0)
+        self.screen.draw.rect((20, 20), (100, 100), yellow, width=9)
+        assert_screen_match(self.surf, 'rect')
+
+    def test_rect_pos_size_form_color_keyword(self):
+        self.screen.draw.rect((20, 20), (100, 100), color='yellow', width=9)
+        assert_screen_match(self.surf, 'rect')
+
+    def test_rect_zrect(self):
+        self.screen.draw.rect(ZRect((20, 20), (100, 100)), 'yellow', width=9)
+        assert_screen_match(self.surf, 'rect')
+
+    def test_filled_rect_pos_size_form(self):
+        """We can draw a filled rectangle from ((x, y), (w, h), color)."""
+        yellow = (255, 255, 0)
+        self.screen.draw.filled_rect((0, 0), (100, 100), yellow)
+        assert_screen_match(self.surf, 'filled_rect')
+
+    def test_filled_rect_pos_size_form_lists_and_floats(self):
+        """Positions and sizes can be lists and are rounded."""
+        self.screen.draw.filled_rect([0.2, 0.4], [99.6, 100.3], 'yellow')
+        assert_screen_match(self.surf, 'filled_rect')
+
+    def test_rect_form_errors(self):
+        """The two calling conventions can't be mixed or left incomplete."""
+        yellow = (255, 255, 0)
+        r = Rect((0, 0), (10, 10))
+        for method in (self.screen.draw.rect, self.screen.draw.filled_rect):
+            with self.subTest(method=method.__name__):
+                with self.assertRaisesRegex(TypeError, "too many"):
+                    method(r, (10, 10), yellow)
+                with self.assertRaisesRegex(TypeError, "requires a color"):
+                    method(r)
+                with self.assertRaisesRegex(TypeError, "requires a color"):
+                    method((0, 0), (10, 10))
+                with self.assertRaisesRegex(TypeError, "requires a rect"):
+                    method((0, 0), yellow, yellow)
+                with self.assertRaisesRegex(TypeError, "requires a rect"):
+                    method(('a', 0), (10, 10), yellow)
+
     def test_rect_errors(self):
         """draw.rect raises errors as expected."""
         yellow = (255, 255, 0)

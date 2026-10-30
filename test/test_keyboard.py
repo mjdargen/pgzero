@@ -52,6 +52,25 @@ class KeyboardTest(unittest.TestCase):
         self.assertTrue(keyboard[keys.A])
         self.assertFalse(keyboard.K_0)
 
+    def test_key_aliases_do_not_warn(self):
+        """Uppercase, prefixed and string lookups are no longer deprecated."""
+        with assert_no_warning():
+            keyboard.A
+            keyboard.K_a
+            keyboard.K_0
+            keyboard["a"]
+            keyboard[keys.A]
+            keyboard.LEFT
+
+    def test_enter_alias(self):
+        """keyboard.enter is an alias for the return key."""
+        keyboard._press(locals.K_RETURN)
+        try:
+            self.assertTrue(keyboard.enter)
+            self.assertTrue(keyboard.RETURN)
+        finally:
+            keyboard._release(locals.K_RETURN)
+
     def test_getitem_keysenum_never_pressed(self):
         """We can check for depressed keys by enum lookup."""
         self.assertFalse(keyboard[keys.Q])

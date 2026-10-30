@@ -23,8 +23,8 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install dependencies
-        run: python -m pip install -e . pytest pre-commit build twine sphinx
+      - name: Install development dependencies
+        run: python -m pip install -r requirements-dev.txt
 
       - name: Run pre-commit checks
         run: python -m pre_commit run --all-files
@@ -40,3 +40,77 @@ jobs:
 
       - name: Validate distributions
         run: python -m twine check --strict dist/*
+
+      - name: Save wheel for compatibility tests
+        uses: actions/upload-artifact@v6
+        with:
+          name: check-wheel
+          path: dist/*.whl
+          if-no-files-found: error
+
+  python-compatibility:
+    name: Python ${{ matrix.python-version }} wheel tests
+    needs: check
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    env:
+      SDL_VIDEODRIVER: dummy
+      SDL_AUDIODRIVER: dummy
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - uses: actions/download-artifact@v6
+        with:
+          name: check-wheel
+          path: dist/
+
+      - name: Install the built wheel and pytest
+        run: python -m pip install dist/*.whl pytest
+
+      - name: Check dependencies
+        run: python -m pip check
+
+      - name: Run tests against installed wheel
+        run: python -m pytest
+
+  legacy-python-compatibility:
+    name: Python ${{ matrix.python-version }} compatibility
+    needs: check
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.6", "3.7", "3.8"]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v6
+        with:
+          name: check-wheel
+          path: dist/
+
+      - name: Test wheel under Python ${{ matrix.python-version }}
+        run: |
+          docker run --rm \
+            -e SDL_VIDEODRIVER=dummy \
+            -e SDL_AUDIODRIVER=dummy \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            python:${{ matrix.python-version }} /bin/sh -c '
+              set -eu
+
+              python -m pip install --only-binary=:all: \
+                dist/*.whl "pytest==6.2.5"
+
+              python -m pip check
+
+              python -m pytest
+            '

@@ -15,7 +15,7 @@ This fork adds features and quality-of-life improvements for introductory comput
 
 The PyPI distribution is named `pgzero-plus`, but it provides the same `pgzero` Python package and `pgzrun` command as the original Pygame Zero. **Do not install both distributions in the same Python environment.**
 
-### Install or update
+### Install or Update
 
 Once published on PyPI:
 
@@ -31,9 +31,9 @@ python -m pip install --upgrade pgzero-plus
 python3 -m pip install --upgrade pgzero-plus
 ```
 
-### Switching from Pygame Zero or an older fork
+### Switching from Pygame Zero or an Older Fork
 
-If you have installed `pgzero` or the earlier `pgzero-mjd` fork, first remove any existing versions, then install this one. This also repairs environments where two versions were accidentally installed together.
+If you previously installed `pgzero` or `pgzero-mjd`, uninstall any overlapping distributions before installing Pygame Zero Plus. This also helps repair environments where multiple forks have been installed together.
 
 **Windows:**
 
@@ -49,11 +49,11 @@ python3 -m pip uninstall -y pgzero pgzero-mjd pgzero-plus
 python3 -m pip install pgzero-plus
 ```
 
-The `--force-reinstall` option does **not** remove a differently named distribution, so it is not a substitute for uninstalling the original `pgzero` package.
+`--force-reinstall` does **not** remove a differently named distribution, so it is not a substitute for uninstalling the original `pgzero` package.
 
 ### Running Games
 
-Pygame Zero Plus supports running games as regular Python scripts, making it easy to use your editor's normal Run button (for example, in VS Code).
+Pygame Zero Plus supports running games as regular Python scripts, including with the Run button in VS Code.
 
 Start your program with:
 
@@ -62,21 +62,21 @@ import pgzrun
 from pgzero.builtins import *
 ```
 
-The explicit `pgzero.builtins` import also helps editors such as VS Code (Pylance) recognize names like `Actor` and `screen`.
+The explicit `pgzero.builtins` import helps editors such as VS Code (Pylance) recognize names like `Actor` and `screen`.
 
-Define your game variables and functions, such as `start()`, `draw()`, and `update()`, then end your program with:
+Define your variables and functions, such as `start()`, `draw()`, and `update()`, then end the program with:
 
 ```python
 pgzrun.go()
 ```
 
-Run the script through your editor or from a terminal:
+Run the script through your editor or with:
 
 ```bash
 python game.py
 ```
 
-Alternatively, use the traditional Pygame Zero runner:
+Alternatively, use the traditional Pygame Zero command:
 
 ```bash
 pgzrun game.py
@@ -91,78 +91,78 @@ git clone https://github.com/mjdargen/pgzero.git
 cd pgzero
 ```
 
-Install the fork in editable mode and install the development dependencies:
+Install the fork in editable mode **and** install all development tools with one command:
 
 ```bash
-python -m pip install -e .
 python -m pip install -r requirements-dev.txt
 ```
 
-Editable installation lets you test source changes without rebuilding the package. If you have the original `pgzero` installed in this environment, uninstall it first as described above.
+`requirements-dev.txt` includes `-e .`, which installs the local package and its runtime dependencies. Source changes are available immediately without rebuilding the wheel. If the original `pgzero` is installed in this environment, uninstall it first as described above.
 
-## Pre-commit Checks
+### Pre-commit Checks
 
-[Pre-commit](https://pre-commit.com/) runs quick checks for whitespace, file formatting, YAML/TOML syntax, merge conflict markers, and accidentally added large files. It is a developer tool; students don't need to install it.
+[Pre-commit](https://pre-commit.com/) checks whitespace, file endings, YAML/TOML syntax, merge conflict markers, and accidentally added large files.
 
-**Set up once per clone** (after installing your development dependencies):
+Activate it **once per clone**, after installing the development dependencies:
 
 ```bash
-python -m pip install pre-commit
 python -m pre_commit install
 ```
 
-**Check the whole repository manually** whenever you want:
+It then runs automatically on staged files before each `git commit`. If a hook modifies a file, review it with `git diff`, stage the fix with `git add`, and retry the commit.
+
+To check all tracked files manually at any time:
 
 ```bash
 python -m pre_commit run --all-files
 ```
 
-After setup, pre-commit also runs automatically on staged files whenever you use `git commit`. Some hooks fix files automatically; if a check fails, review the changes with `git diff`, stage any fixes with `git add`, and run the checks or commit again.
-
 Using `python -m pre_commit` avoids Windows PATH issues where the `pre-commit` command is not recognized.
 
-## Testing
+### Testing
 
-Run the full test suite from the repository root:
+Run all tests from the repository root:
 
 ```bash
 python -m pytest
 ```
 
-To see individual test results or run a specific test file:
+For detailed output or one test file:
 
 ```bash
 python -m pytest -v
 python -m pytest test/test_actor.py
 ```
 
-## Documentation
+### Documentation
 
-Documentation is written in [Sphinx](https://www.sphinx-doc.org/) using the `.rst` files in `doc/`. Edit those files when you add or change features, and update `doc/index.rst` if you add a new page. The Sphinx configuration is in `doc/conf.py`; `.readthedocs.yaml` controls the hosted documentation build.
+Documentation is written in [Sphinx](https://www.sphinx-doc.org/) using the `.rst` files in `doc/`. Update these pages when features or behavior change, and add new pages to `doc/index.rst` so they appear in the navigation.
 
-**Build and preview locally** (from the repository root):
+Build and preview locally from the repository root:
+
+```bash
+python -m sphinx -b html doc doc/_build/html
+```
+
+On Windows (PowerShell), open the generated documentation with:
 
 ```powershell
-python -m pip install sphinx
-python -m sphinx -b html doc doc/_build/html
 start doc/_build/html/index.html
 ```
 
-On macOS/Linux, open `doc/_build/html/index.html` in a browser instead of using `start`. Check Sphinx's output for warnings; after resolving existing warnings, you can also use `-W --keep-going` to make warnings fail the build.
+On macOS or Linux, open that HTML file in your browser. The Sphinx configuration lives in `doc/conf.py`.
 
-**Automatic checks and publishing:** The GitHub Actions **Code Checks** workflow can build the documentation alongside the tests, catching documentation build errors. [Read the Docs](https://readthedocs.org/) handles **hosting and automatic publication** separately: import this GitHub repository into Read the Docs once, and its GitHub integration will rebuild the documentation after changes are pushed. You do not need a separate GitHub Action to deploy the website.
+Once this repository is connected to [Read the Docs](https://readthedocs.org/), its `.readthedocs.yaml` configuration allows the hosted documentation to rebuild automatically after changes are pushed. GitHub Actions verifies that the documentation builds; Read the Docs hosts and publishes the website.
 
-Documentation updates are not generated automatically from code changes: update the relevant `.rst` pages when the API or behavior changes.
+### Automated Checks on GitHub
+
+The [Code Checks workflow](https://github.com/mjdargen/pgzero/actions) (`.github/workflows/checks.yml`) runs automatically on pushes to `main` and on pull requests. It runs pre-commit, pytest, Sphinx, the package build, and distribution validation.
+
+These checks run **after** a push, so a failing check does not undo the push. Check the Actions page for results and fix any failures before publishing a release.
 
 ## Building and Verification
 
-Install the packaging tools:
-
-```bash
-python -m pip install --upgrade build twine
-```
-
-Before releasing, run pre-commit checks, tests, and the documentation build; then build both distributions and validate their metadata and README:
+The automated release workflow builds distributions for publishing, so **manual builds are optional** during everyday development. To check a release locally, run:
 
 ```bash
 python -m pre_commit run --all-files
@@ -172,9 +172,11 @@ python -m build
 python -m twine check --strict dist/*
 ```
 
-The wheel and source archive are written to `dist/`. For version `0.1.0`, the wheel is `dist/pgzero_plus-0.1.0-py3-none-any.whl`. Remove older files from `dist/` before publishing a new release.
+The wheel (`.whl`) and source archive (`.tar.gz`) are written to `dist/`. Clear out older distributions from `dist/` before building a new version so you do not accidentally inspect or upload old files.
 
-**Verify the built wheel** in a fresh virtual environment so you test the release artifact rather than your editable source installation.
+### Verify the Built Wheel
+
+Install the built wheel in a **fresh virtual environment** to check the distribution itself instead of your editable development installation. The example filename below is for version `0.1.0`; update it when the version changes.
 
 **Windows (PowerShell):**
 
@@ -194,9 +196,35 @@ python3 -m venv .venv-wheel-check
 .venv-wheel-check/bin/python -c "import pgzero, pgzrun; print(pgzero.__file__)"
 ```
 
-The wheel filename changes when you bump the package version.
+**Python 3.6 compatibility:** This fork targets Python 3.6 through 3.13, including older Codio environments. The modern build backend does not support building from source on Python 3.6. Before a release, install the **built wheel** in Codio and run a representative game there; passing tests on Python 3.13 does not establish compatibility with Python 3.6.
 
-**Python 3.6 compatibility:** This fork targets Python 3.6 through 3.13, including older Codio environments. Since its modern build backend cannot build from source on Python 3.6, verify installation using the **built wheel** in Codio and run a representative game there before publishing. Building and running pytest can be done on your newer development Python.
+## Publishing Releases
+
+GitHub Actions handles publishing through `.github/workflows/release.yml`. A new package is **not** published on every push to `main`; publishing starts only when you push a version tag.
+
+### One-time PyPI Setup
+
+1. Create a GitHub repository environment named `pypi` under **Settings → Environments**.
+2. Configure [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/) for project `pgzero-plus`, GitHub owner `mjdargen`, repository `pgzero`, workflow `release.yml`, and environment `pypi`. For a first release, use a _pending trusted publisher_ if the project has not yet been created on PyPI.
+
+This allows GitHub Actions to publish without storing a PyPI API token.
+
+### Create a Release
+
+1. Set the new `version` in `pyproject.toml`. For example, `version = "0.1.0"`.
+2. Commit and push your changes to `main`, then confirm that **Code Checks** passes on the [Actions page](https://github.com/mjdargen/pgzero/actions).
+3. Create and push a Git tag **matching** that version, with a leading `v`:
+
+```bash
+git switch main
+git pull
+git tag -a v0.1.0 -m "Release v0.1.0"
+git push origin v0.1.0
+```
+
+The release workflow verifies the version, runs the checks, builds the wheel and source archive, publishes to PyPI, and creates a GitHub Release with the built files attached. If a check or build fails, publishing stops.
+
+For a later release, update the version number and use its matching tag (for example, `0.1.1` and `v0.1.1`). Use patch releases for bug fixes and minor releases for new features. **PyPI does not allow replacing files for an existing published version.**
 
 ## Credits & License
 

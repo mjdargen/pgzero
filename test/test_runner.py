@@ -45,3 +45,29 @@ class RunnerTest(unittest.TestCase):
     def test_run_directory_run_game(self):
         """We can run a directory containing run_game.py"""
         self.assert_runnable(game_tests / 'blue')
+
+
+class GameStateRunnerTest(unittest.TestCase):
+    """The runner wires up start() and the ``game`` builtin."""
+
+    def assert_runnable(self, path: Path):
+        clock.schedule_unique(sys.exit, 0.05)
+        with self.assertRaises(SystemExit):
+            load_and_run(str(path))
+
+    def test_start_hook_and_restart(self):
+        """start() runs before the first frame and again on restart."""
+        self.assert_runnable(game_tests / 'start_hook.py')
+
+    def test_new_builtins(self):
+        """Sprite, SpriteActor, game etc. are available to games."""
+        self.assert_runnable(game_tests / 'new_builtins.py')
+
+    def test_each_run_gets_a_fresh_game(self):
+        import builtins
+        self.assert_runnable(game_tests / 'new_builtins.py')
+        first = builtins.game
+        first.score = 99
+        self.assert_runnable(game_tests / 'new_builtins.py')
+        self.assertIsNot(builtins.game, first)
+        self.assertEqual(builtins.game.score, 0)

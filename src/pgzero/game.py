@@ -71,6 +71,8 @@ class Game:
         if clear_clock not in ("immediate", "on_restart", "never"):
             raise ValueError("clear_clock must be 'immediate', 'on_restart', or 'never'")
 
+        self._check_can_delay(delay)
+
         self._restart_clear_mode = clear_clock
 
         if self._clock:
@@ -82,11 +84,24 @@ class Game:
                 self._clock.clear()
 
         if delay and delay > 0:
-            if self._clock:
-                self._clock.schedule_unique(self._do_restart, delay)
+            self._clock.schedule_unique(self._do_restart, delay)
             return
 
         self._do_restart()
+
+    def _check_can_delay(self, delay):
+        """Raise a helpful error if a delayed restart can't be scheduled.
+
+        Delays need the game clock, which is only connected once the game
+        starts running, so this happens when the call is at the top level
+        of the game file instead of inside a function.
+        """
+        if delay and delay > 0 and self._clock is None:
+            raise RuntimeError(
+                "A delayed restart can only be used while the game is "
+                "running. Call it from inside a function such as update() "
+                "or on_key_down(), not at the top level of your file."
+            )
 
     def _do_restart(self):
         if self._is_restarting:
@@ -110,6 +125,7 @@ class Game:
         """Leave the "playing" state, optionally scheduling a restart."""
         if self.state != "playing":
             return
+        self._check_can_delay(restart_after)
         self.state = state
 
         if self._clock and clear_clock == "immediate":
@@ -160,6 +176,10 @@ class Game:
         if self.state == "playing":
             self.timer += dt
 
+    # These two methods don't change how attributes work at runtime. Their
+    # type hints tell editors and linters (e.g. Pylance) that students may
+    # add their own attributes, such as ``game.lives = 3``, without being
+    # warned that the attribute doesn't exist. Do not remove them.
     def __getattr__(self, name: str) -> Any:
         raise AttributeError(f"'Game' object has no attribute '{name}'")
 

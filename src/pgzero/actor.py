@@ -308,13 +308,7 @@ class Actor:
         anchor_y = ay * self._scale
 
         if self._flip_d:
-            anchor_x, anchor_y = transform_anchor(
-                anchor_x,
-                anchor_y,
-                body_w * self._scale,
-                body_h * self._scale,
-                -90,
-            )
+            anchor_x, anchor_y = anchor_y, anchor_x
             transformed_w, transformed_h = transformed_h, transformed_w
 
         if self._angle != 0.0:

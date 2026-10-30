@@ -119,6 +119,24 @@ class SpellCheckerTest(TestCase):
         })
         self.assert_has_warning('on_moose_down', 'on_mouse_down')
 
+    def test_start_is_a_hook(self):
+        self.assertIn('start', spellcheck.HOOKS)
+
+    def test_misspelled_start(self):
+        self.spellcheck({
+            'strat': lambda: None,
+        })
+        self.assert_has_warning('strat', 'start')
+
+    def test_start_not_reported(self):
+        self.spellcheck({
+            'start': lambda: None,
+            'draw': lambda: None,
+            'update': lambda: None,
+        })
+        self.assertEqual(self.result.warnings, [])
+        self.assertEqual(self.result.errors, [])
+
     def test_misspelled_width_uppercase(self):
         self.spellcheck({
             'WIDHT': 640,

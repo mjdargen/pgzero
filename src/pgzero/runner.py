@@ -122,8 +122,7 @@ def load_and_run(path, *, fps: bool = False):
             except FileNotFoundError:
                 pass
         else:
-            raise NoMainModule(
-                f"""\
+            raise NoMainModule(f"""\
 Error: {path} is a directory.
 
 To run a directory with pgzrun, it must contain a file named __main__.py,
@@ -132,8 +131,7 @@ main.py, run_game.py, or a .py file with the same name as the directory.
 You can also run a specific file with:
 
     pgzrun path/to/your/file.py
-"""
-            )
+""")
     else:
         name, _ = os.path.splitext(os.path.basename(path))
 
@@ -188,6 +186,8 @@ def prepare_mod(mod):
 
     for k, v in vars(pgzero_builtins).items():
         python_builtins.__dict__.setdefault(k, v)
+
+    python_builtins.exit = pgzero_builtins.exit
 
 
 def run_mod(mod, **kwargs):

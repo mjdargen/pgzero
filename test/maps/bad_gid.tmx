@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" orientation="orthogonal" width="1" height="1" tilewidth="8" tileheight="8">
+ <tileset firstgid="1" name="tiles" tilewidth="8" tileheight="8" spacing="2" margin="1" tilecount="5" columns="3">
+  <image source="tiles.png" width="30" height="20"/>
+ </tileset>
+ <layer id="1" name="ground" width="1" height="1">
+  <data encoding="csv">6</data>
+ </layer>
+</map>

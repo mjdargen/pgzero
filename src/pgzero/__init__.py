@@ -10,7 +10,7 @@ try:
     from importlib.metadata import version as _dist_version
 
     try:
-        __version__ = _dist_version("pgzero-mjd")
+        __version__ = _dist_version("pgzero-plus")
     except PackageNotFoundError:
         __version__ = "unknown"
 except ImportError:  # Python < 3.8
