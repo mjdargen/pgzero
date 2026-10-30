@@ -142,7 +142,6 @@ class Actor:
     _flip_h = False
     _flip_v = False
     _flip_d = False
-    _images = []
     _animate_counter = 0
     fps = 5
     direction = 0
@@ -170,6 +169,7 @@ class Actor:
         self.__dict__["_rect"] = rect.ZRect((0, 0), (0, 0))
         self._collision_rect_spec = collision_rect
         self._mask = None
+        self._images = []
 
         self.image = image
         self._init_position(pos, anchor, **kwargs)

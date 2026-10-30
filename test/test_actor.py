@@ -146,3 +146,10 @@ class ActorTest(unittest.TestCase):
         a = Actor("alien")
         for attribute in dir(a):
             a.__getattr__(attribute)
+
+    def test_images_not_shared(self):
+        """Each actor gets its own images list."""
+        a = Actor("alien")
+        b = Actor("alien")
+        a.images.append("alien_hurt")
+        self.assertEqual(b.images, [])
