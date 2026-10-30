@@ -47,6 +47,7 @@ class Sprite:
         self.row_number = row_number
         self.frame_count = frame_count
         self.fps = fps
+        self.transparent_color = transparent_color
         self.loop = loop
         self.finished = False
         self.frame_index = 0
@@ -92,6 +93,8 @@ class Sprite:
             self.row_number,
             self.frame_count,
             self.fps,
+            self.transparent_color,
+            self.loop,
         )
 
     def reset(self):
