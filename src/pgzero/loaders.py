@@ -7,9 +7,6 @@ import pygame.mixer
 
 from . import ptext
 
-from typing import Any
-import pygame.mixer
-
 # Root directory for loaders
 # This is modified by calling set_root(), which is called by the game runner.
 root = "."
