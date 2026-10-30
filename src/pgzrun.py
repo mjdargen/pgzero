@@ -8,37 +8,14 @@ script (we enter the game loop, calling draw() and update() etc as defined in
 __main__).
 """
 
-import os
-import warnings
-
-if (
-    "CODIO_BOX_DOMAIN" in os.environ
-    or "CODIO_HOSTNAME" in os.environ
-    or os.environ.get("USER") == "codio"
-    or os.path.exists("/home/codio")
-):
-    os.environ["SDL_AUDIODRIVER"] = "dummy"
-    warnings.filterwarnings("ignore", message=".*avx2 capable.*", category=RuntimeWarning)
-
-# Hide pygame welcome message
-os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
-
-# Suppress pkg_resources deprecation warning (from pygame)
-warnings.filterwarnings(
-    "ignore",
-    message=r"pkg_resources is deprecated as an API.*",
-    category=UserWarning,
-)
-
-
-import pygame
-from pgzero.runner import prepare_mod, run_mod
-from pgzero.game import PGZeroGame, DISPLAY_FLAGS
 import sys
+from pgzero.runner import prepare_mod, run_mod
 
 
 mod = sys.modules["__main__"]
 
+# If the game was started with the pgzrun command, the runner has already
+# prepared this module and will run it, so importing pgzrun does nothing.
 if not getattr(sys, "_pgzrun", None):
     if not getattr(mod, "__file__", None):
         raise ImportError(
@@ -47,15 +24,6 @@ if not getattr(sys, "_pgzrun", None):
         )
 
     prepare_mod(mod)
-
-    # Create a hidden temporary display so top-level image loading works.
-    if pygame.display.get_surface() is None:
-        pygame.display.init()
-        PGZeroGame.show_default_icon()
-        pygame.display.set_mode(
-            (100, 100),
-            flags=(DISPLAY_FLAGS & ~pygame.SHOWN) | pygame.HIDDEN,
-        )
 
 
 def go():

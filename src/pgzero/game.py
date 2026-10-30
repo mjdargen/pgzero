@@ -9,7 +9,6 @@ import pgzero.clock
 import pgzero.keyboard
 import pgzero.screen
 import pgzero.loaders
-import pgzero.screen
 import builtins
 
 from . import constants

@@ -148,10 +148,10 @@ You can also run a specific file with:
     prepare_mod(mod)
     exec(code, mod.__dict__)
 
-    PGZeroGame.show_default_icon()
     try:
         run_mod(mod, fps=fps)
     finally:
+        # Clean some of the state we created, useful in testing
         pygame.display.quit()
         clock.clock.clear()
         del sys.modules[name]
@@ -167,29 +167,67 @@ def prepare_mod(mod):
 
     * Our extra builtins need to be defined (by copying them into Python's
       `builtins` module)
-    * A screen needs to be created (because we use convert_alpha() to convert
-      Sprite surfaces for blitting to the screen).
+    * A window needs to exist (because we use convert_alpha() to convert
+      image surfaces for blitting to the screen). See open_loading_window().
 
     """
     storage.storage._set_filename_from_path(mod.__file__)
     loaders.set_root(mod.__file__)
 
-    PGZeroGame.show_default_icon()
-    pygame.display.set_mode((100, 100), DISPLAY_FLAGS)
+    open_loading_window()
 
     from .game import Game
+    from . import builtins as pgzero_builtins
     import builtins as python_builtins
 
-    python_builtins.game = Game()
+    for name in pgzero_builtins.__all__:
+        python_builtins.__dict__.setdefault(name, getattr(pgzero_builtins, name))
 
-    from . import builtins as pgzero_builtins
-
-    for k, v in vars(pgzero_builtins).items():
-        python_builtins.__dict__.setdefault(k, v)
-
+    # setdefault() keeps any name that already exists, so these are replaced
+    # explicitly:
+    # * exit: Python already has its own exit(), which doesn't wait for
+    #   sounds to finish playing.
+    # * game: each run starts with a fresh Game, so score and state from an
+    #   earlier run (e.g. in the test suite) don't carry over.
     python_builtins.exit = pgzero_builtins.exit
+    python_builtins.game = pgzero_builtins.game = Game()
+
+
+def open_loading_window():
+    """Create a hidden window for the game module's top-level code to use.
+
+    Several Pygame surface operations access the state of the screen as a
+    global:
+
+    * Surface.convert_alpha() without arguments converts a surface for fast
+      blitting to the display.
+    * Surface() without flags creates a surface identical to the display
+      format.
+
+    There's no good API to expose what the display format is until we create
+    a window, so we create a hidden one, which lets code like a top-level
+    ``Actor("alien")`` load its image. The expectation is that when we create
+    the real window this will have the same display format and blits etc will
+    still be fast.
+
+    run_mod() closes this window before opening the real one. Resizing it
+    instead would leave the game window off-centre on the screen.
+
+    """
+    # An icon needs to exist before the window is created.
+    PGZeroGame.show_default_icon()
+    pygame.display.set_mode(
+        (100, 100),
+        flags=(DISPLAY_FLAGS & ~pygame.SHOWN) | pygame.HIDDEN,
+    )
 
 
 def run_mod(mod, **kwargs):
     """Run the module."""
+    # Start from a fresh display so the game window opens centred, rather
+    # than reusing the hidden loading window from prepare_mod().
+    pygame.display.quit()
+    pygame.display.init()
+    PGZeroGame.show_default_icon()
+
     PGZeroGame(mod, **kwargs).run()
