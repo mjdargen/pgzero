@@ -3,6 +3,20 @@ Built-in Objects
 
 Pygame Zero provides useful built-in objects to help you make games easily.
 
+.. note::
+
+    This is the ``pgzero-mjd`` classroom build. Besides everything on this
+    page it provides these extra builtins, documented on their own pages:
+
+    * :class:`Sprite` and :class:`SpriteActor`: :doc:`sprites`
+    * :func:`load_tile_map_actors`: :doc:`tilemaps`
+    * :class:`Game`, the ``game`` object and :func:`exit`: :doc:`game`
+    * extra :class:`Actor` features such as ``scale``, ``flip_h`` and
+      ``collision_rect``: :doc:`actor-additions`
+
+    Where the behaviour of an object on this page differs from the original
+    Pygame Zero, it is marked *Changed in version pgzero-mjd*.
+
 
 .. _screen:
 
@@ -73,9 +87,20 @@ draw images to the screen ("blit" them).
 
         Takes a :ref:`Rect <rect>`.
 
+        .. versionchanged:: pgzero-mjd
+
+            Also accepts a position and a size instead of a rect:
+            ``screen.draw.rect((x, y), (w, h), color, width=1)``. Pass
+            ``width`` by keyword; a positional width raises ``TypeError``
+            in this build.
+
     .. method:: draw.filled_rect(rect, (r, g, b))
 
         Draw a filled rectangle.
+
+        .. versionchanged:: pgzero-mjd
+
+            Also accepts ``screen.draw.filled_rect((x, y), (w, h), color)``.
 
     .. method:: draw.text(text, [pos], **kwargs)
 
@@ -310,6 +335,13 @@ Another difference to the sounds system is that only one music track can be
 playing at a time. If you play a different track, the previously playing track
 will be stopped.
 
+.. versionchanged:: pgzero-mjd
+
+    The music system remembers which track is playing. ``is_playing()``
+    takes an optional track name, ``is_paused()`` is new, and ``pause()``
+    and ``unpause()`` are safe to call when nothing is playing or paused.
+    See :doc:`game` for details.
+
 
 .. function:: music.play(name)
 
@@ -340,15 +372,21 @@ will be stopped.
 .. function:: music.pause()
 
     Pause the music temporarily. It can be resumed by calling
-    ``unpause()``.
+    ``unpause()``. Does nothing if no music is playing.
 
 .. function:: music.unpause()
 
-    Unpause the music.
+    Unpause the music. Does nothing unless the music is paused.
 
-.. function:: music.is_playing()
+.. function:: music.is_playing(name=None)
 
     Returns True if the music is playing (and is not paused), False otherwise.
+
+    If ``name`` is given, returns True only if that track is the one playing.
+
+.. function:: music.is_paused()
+
+    Returns True if the music is paused.
 
 .. function:: music.fadeout(duration)
 
@@ -449,6 +487,12 @@ referring to a time value and not a count of things.)
         or because it has been scheduled to repeat with
         ``schedule_interval()``.
 
+    .. method:: clear()
+
+        Unschedule everything. ``game.restart()``, ``game.win()``,
+        ``game.lose()`` and ``game.over()`` call this for you unless told
+        otherwise; see :doc:`game`.
+
 
 Note that the Pygame Zero clock only holds weak references to each callback
 you give it. It will not fire scheduled events if the objects and methods are
@@ -494,6 +538,17 @@ including methods like `.colliderect()`__ which can be used to test whether
 two actors have collided.
 
 .. __: https://www.pygame.org/docs/ref/rect.html#pygame.Rect.colliderect
+
+.. versionchanged:: pgzero-mjd
+
+    ``actor.image`` is always a string: the name you set, or ``""`` for an
+    actor built from a surface. ``image`` may also be set to a Pygame
+    surface. Actors gain ``scale``, ``flip_h``, ``flip_v``, ``flip_d``,
+    ``collision_rect``, ``draw_collision_rect()``, ``collidelist()`` and
+    simple frame animation through ``images`` and ``animate()``; and
+    ``Actor(...)`` accepts a ``collision_rect=`` argument. All of these are
+    described in :doc:`actor-additions`. For animated sprite-sheet actors see
+    :class:`SpriteActor` in :doc:`sprites`.
 
 
 Positioning Actors
@@ -685,6 +740,10 @@ not constants.
     Uppercase and prefixed attribute names (eg. ``keyboard.LEFT`` or
     ``keyboard.K_a``) are now deprecated; use lowercase attribute names
     instead.
+
+    .. versionchanged:: pgzero-mjd
+
+        These names still work and no longer print a deprecation warning.
 
 .. _`Buttons and Keys`: hooks.html#buttons-and-keys
 

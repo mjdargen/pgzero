@@ -3,14 +3,34 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to Pygame Zero
-======================
+Welcome to pgzero-mjd
+=====================
 
-Pygame Zero is for creating games without boilerplate.
+This is the documentation for **pgzero-mjd**, Mike D'Argenio's classroom
+build of `Pygame Zero <https://pygame-zero.readthedocs.io/>`_.
 
-It is intended for use in education, so that teachers can teach basic
-programming without needing to explain the Pygame API or write an event loop.
+Pygame Zero is for creating games without boilerplate. It is intended for use
+in education, so that teachers can teach basic programming without needing to
+explain the Pygame API or write an event loop.
 
+``pgzero-mjd`` is Pygame Zero plus sprite-sheet animation, Tiled tile maps, a
+``game`` object for score and win/lose state, and a few actor extras. The
+*Classroom additions* pages below cover what is new; the rest of these docs
+come from the original project at https://github.com/lordmauve/pgzero and
+apply unchanged.
+
+
+Classroom additions
+-------------------
+
+.. toctree::
+    :maxdepth: 2
+
+    classroom
+    sprites
+    tilemaps
+    game
+    actor-additions
 
 Courses
 -------
