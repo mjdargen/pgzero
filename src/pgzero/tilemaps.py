@@ -16,17 +16,9 @@ def _get_tile_surface(tileset, tile_col, tile_row, map_tile_width, map_tile_heig
     ty = tileset["margin"] + tile_row * (tileset["tile_height"] + tileset["spacing"])
 
     tile_rect = (tx, ty, tileset["tile_width"], tileset["tile_height"])
-    tile_surface = tileset["image"].subsurface(tile_rect).copy()
+    tile_surface = tileset["image"].subsurface(tile_rect)
 
-    tile_scale_x = map_tile_width / tileset["tile_width"]
-    tile_scale_y = map_tile_height / tileset["tile_height"]
-
-    scaled_size = (
-        int(round(tileset["tile_width"] * tile_scale_x)),
-        int(round(tileset["tile_height"] * tile_scale_y)),
-    )
-
-    return pygame.transform.scale(tile_surface, scaled_size)
+    return pygame.transform.scale(tile_surface, (map_tile_width, map_tile_height))
 
 
 class Tile(Actor):
@@ -50,25 +42,20 @@ class Tile(Actor):
         self._map_tile_width = map_tile_width
         self._map_tile_height = map_tile_height
 
-        tile_surface = _get_tile_surface(
-            tileset,
-            tile_col,
-            tile_row,
-            map_tile_width,
-            map_tile_height,
-        )
-
-        super().__init__(tile_surface)
+        super().__init__(self._tile_surface(tile_col, tile_row))
 
         self.scale = scale
         self.flip_h = flip_h
         self.flip_v = flip_v
         self.flip_d = flip_d
 
-        self.set_tile_image(tile_col, tile_row)
         self.set_map_position(map_col, map_row)
 
     def set_tile_image(self, tile_col, tile_row):
+        self.image = self._tile_surface(tile_col, tile_row)
+
+    def _tile_surface(self, tile_col, tile_row):
+        """Check (tile_col, tile_row), record the tile ids and return the tile's surface."""
         columns = self._tileset["columns"]
         rows = self._tileset["rows"]
         tile_count = self._tileset["tile_count"]
@@ -84,18 +71,18 @@ class Tile(Actor):
         if tile_id >= tile_count:
             raise ValueError(f"tile_col={tile_col}, tile_row={tile_row} points past the tileset's last tile.")
 
-        self.image = _get_tile_surface(
+        self.tile_col = tile_col
+        self.tile_row = tile_row
+        self.tile_id = tile_id
+        self.tile_gid = self.tileset_firstgid + self.tile_id
+
+        return _get_tile_surface(
             self._tileset,
             tile_col,
             tile_row,
             self._map_tile_width,
             self._map_tile_height,
         )
-
-        self.tile_col = tile_col
-        self.tile_row = tile_row
-        self.tile_id = tile_id
-        self.tile_gid = self.tileset_firstgid + self.tile_id
 
     def set_map_position(self, map_col, map_row):
         self.map_col = map_col
@@ -272,13 +259,13 @@ def load_tile_map_actors(tmx_name, scale=1):
         if encoding != "csv":
             raise ValueError(f"Layer '{name}' must use CSV encoding. Found: {encoding!r}")
 
-        contents = [[int(v) for v in row.split(",") if v.strip()] for row in data.text.strip().splitlines()]
+        gids = [int(v) for v in data.text.split(",") if v.strip()]
 
         items = []
 
         for row in range(height):
             for col in range(width):
-                tile_gid = contents[row][col]
+                tile_gid = gids[row * width + col]
                 if tile_gid == 0:
                     continue
 
