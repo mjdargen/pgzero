@@ -18,4 +18,8 @@ examples_dev
 /notebooks
 /test/failed-image
 __pycache__
-src/pgzero/_version.py
+
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage.*

@@ -11,15 +11,11 @@ def round_pos(pos):
     try:
         x, y = pos
     except TypeError:
-        raise TypeError(
-            "Coordinate must be a tuple (not {!r})".format(pos)
-        ) from None
+        raise TypeError("Coordinate must be a tuple (not {!r})".format(pos)) from None
     try:
         return round(x), round(y)
     except TypeError:
-        raise TypeError(
-            "Coordinate values must be numbers (not {!r})".format(pos)
-        ) from None  # noqa
+        raise TypeError("Coordinate values must be numbers (not {!r})".format(pos)) from None  # noqa
 
 
 def make_color(arg):
@@ -59,9 +55,7 @@ class SurfacePainter:
         try:
             iter(points)
         except TypeError:
-            raise TypeError(
-                "screen.draw.filled_polygon() requires an iterable of points to draw"
-            ) from None  # noqa
+            raise TypeError("screen.draw.filled_polygon() requires an iterable of points to draw") from None  # noqa
         points = [round_pos(point) for point in points]
         pygame.draw.polygon(self._surf, make_color(color), points, 1)
 
@@ -70,68 +64,34 @@ class SurfacePainter:
         try:
             iter(points)
         except TypeError:
-            raise TypeError(
-                "screen.draw.filled_polygon() requires an iterable of points to draw"
-            ) from None  # noqa
+            raise TypeError("screen.draw.filled_polygon() requires an iterable of points to draw") from None  # noqa
         points = [round_pos(point) for point in points]
         pygame.draw.polygon(self._surf, make_color(color), points, 0)
 
-    def _coerce_rect(self, rect_or_pos, size=None, method_name="rect"):
+    def _coerce_rect(self, rect, color_or_size, color, method_name):
+        """Unpack ``(rect, color)`` or ``((x, y), (w, h), color)``.
+
+        Return (pygame.Rect, (l, t, w, h), color).
         """
-        Accept either:
-            - a Rect/ZRect-like object
-            - ((x, y), (w, h))
-        and return a pygame.Rect
-        """
-        if isinstance(rect_or_pos, RECT_CLASSES):
-            l, t, w, h = rect_or_pos
-            return pygame.Rect(round(l), round(t), round(w), round(h)), (
-                float(l),
-                float(t),
-                float(w),
-                float(h),
-            )
-
-        if size is None:
-            raise TypeError(
-                f"screen.draw.{method_name}() requires a rect or ((x, y), (w, h))"
-            )
-
-        try:
-            x, y = rect_or_pos
-            w, h = size
-        except Exception:
-            raise TypeError(
-                f"screen.draw.{method_name}() requires a rect or ((x, y), (w, h))"
-            ) from None
-
-        try:
-            x, y, w, h = float(x), float(y), float(w), float(h)
-        except Exception:
-            raise TypeError(
-                f"screen.draw.{method_name}() values must be numeric"
-            ) from None
-
-        return pygame.Rect(round(x), round(y), round(w), round(h)), (x, y, w, h)
-
-    def rect(self, rect_or_pos, color_or_size, color=None, width=1):
-        """Draw a rectangle from either a rect or ((x, y), (w, h))."""
-        if isinstance(rect_or_pos, RECT_CLASSES):
-            if color is not None:
-                raise TypeError(
-                    "screen.draw.rect() got too many positional arguments for rect form"
-                )
-            rect, raw = self._coerce_rect(
-                rect_or_pos,
-                method_name="rect",
-            )
-            color = color_or_size
+        if isinstance(rect, RECT_CLASSES):
+            if color is None:
+                color = color_or_size
+            elif color_or_size is not None:
+                raise TypeError(f"screen.draw.{method_name}() got too many positional arguments for rect form")
+            l, t, w, h = rect
         else:
-            rect, raw = self._coerce_rect(
-                rect_or_pos,
-                size=color_or_size,
-                method_name="rect",
-            )
+            try:
+                (l, t), (w, h) = rect, color_or_size
+                l, t, w, h = float(l), float(t), float(w), float(h)
+            except (TypeError, ValueError):
+                raise TypeError(f"screen.draw.{method_name}() requires a rect or ((x, y), (w, h))") from None
+        if color is None:
+            raise TypeError(f"screen.draw.{method_name}() requires a color")
+        return pygame.Rect(round(l), round(t), round(w), round(h)), (l, t, w, h), color
+
+    def rect(self, rect, color_or_size=None, color=None, width=1):
+        """Draw a rectangle: rect(rect, color) or rect((x, y), (w, h), color)."""
+        rect, (l, t, w, h), color = self._coerce_rect(rect, color_or_size, color, "rect")
 
         if width <= 1:
             pygame.draw.rect(self._surf, make_color(color), rect, width)
@@ -139,7 +99,6 @@ class SurfacePainter:
 
         c = make_color(color)
 
-        l, t, w, h = raw  # noqa: E741
         hw = width / 2
         l1, l2 = round(l - hw), round(l + hw)
         r1, r2 = round(l + w - hw), round(l + w + hw)
@@ -155,25 +114,9 @@ class SurfacePainter:
         r(r1, t2, r2, b1)
         r(l1, b1, r2, b2)
 
-    def filled_rect(self, rect_or_pos, color_or_size, color=None):
-        """Draw a filled rectangle from either a rect or ((x, y), (w, h))."""
-        if isinstance(rect_or_pos, RECT_CLASSES):
-            if color is not None:
-                raise TypeError(
-                    "screen.draw.filled_rect() got too many positional arguments for rect form"
-                )
-            rect, _ = self._coerce_rect(
-                rect_or_pos,
-                method_name="filled_rect",
-            )
-            color = color_or_size
-        else:
-            rect, _ = self._coerce_rect(
-                rect_or_pos,
-                size=color_or_size,
-                method_name="filled_rect",
-            )
-
+    def filled_rect(self, rect, color_or_size=None, color=None):
+        """Draw a filled rectangle: filled_rect(rect, color) or filled_rect((x, y), (w, h), color)."""
+        rect, _, color = self._coerce_rect(rect, color_or_size, color, "filled_rect")
         pygame.draw.rect(self._surf, make_color(color), rect, 0)
 
     def text(self, *args, **kwargs):

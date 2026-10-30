@@ -1,14 +1,29 @@
 Changelog
 =========
 
-1.3 - unreleased
+Pygame Zero Plus
 ----------------
+
+0.1.0 - Initial release
+~~~~~~~~~~~~~~~~~~~~~~~
+
+* Enhanced Actors with scaling, flipping, opacity, and custom collisions.
+* Added Sprite and SpriteActor classes for sprite sheet animations.
+* Added support for tilemaps created with Tiled Map Editor.
+* Added game management and restart functionality.
+
+Original Pygame Zero
+--------------------
+
+The following release history is inherited from the original
+Pygame Zero project.
+
+1.3 - unreleased
+~~~~~~~~~~~~~~~~
 
 * New: :ref:`Actors can be made transparent <transparency>` by assigning to
   ``actor.opacity`` (based on work by Rhys Puddephatt and charlesej)
 * New: screen.fill() now takes ``gcolor``, creating a vertical-linear gradient
-* New: a :doc:`REPL <repl>` has been added, which allows exploring a game's
-  state while it is running.
 * New: Added a :ref:`storage API <data-storage>`, which preserves data across
   game runs (based on work by Ian Salmons and Gustavo Ferreira)
 

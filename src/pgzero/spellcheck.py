@@ -27,18 +27,15 @@ def distance(a, b):
                 subst_cost = 0
             else:
                 subst_cost = 1.25 * cost
-            insertion_cost = 0.7 if cb == '_' else 1.0
-            deletion_cost = 0.7 if ca == '_' else 1.0
+            insertion_cost = 0.7 if cb == "_" else 1.0
+            deletion_cost = 0.7 if ca == "_" else 1.0
             d[i, j] = min(
                 d[i - 1, j] + deletion_cost,  # deletion
                 d[i, j - 1] + insertion_cost,  # insertion
                 d[i - 1, j - 1] + subst_cost,  # substitution
             )
             if i > 1 and j > 1 and ca == b[j - 2] and a[i - 2] == cb:
-                d[i, j] = min(
-                    d[i, j],
-                    d[i - 2, j - 2] + cost  # transposition
-                )
+                d[i, j] = min(d[i, j], d[i - 2, j - 2] + cost)  # transposition
 
     return d[la, lb]
 
@@ -84,19 +81,11 @@ def compare(have, want):
 
 EVENT_HOOKS = list(PGZeroGame.EVENT_HANDLERS.values())
 
-HOOKS = [
-    'draw',
-    'update',
-]
+HOOKS = ["draw", "update", "start"]
 
 
 # The list of magic module-level constants
-CONSTS = [
-    'TITLE',
-    'WIDTH',
-    'HEIGHT',
-    'ICON'
-]
+CONSTS = ["TITLE", "WIDTH", "HEIGHT", "ICON"]
 
 # Available parameters for each hook
 # NB. update() takes one or zero positional parameter but we don't constrain
@@ -104,13 +93,13 @@ CONSTS = [
 #
 # FIXME: These are from the documentation; there could be some missing here
 VALID_PARAMS = {
-    'on_mouse_down': ['pos', 'button'],
-    'on_mouse_up': ['pos', 'button'],
-    'on_mouse_move': ['pos', 'buttons', 'rel'],
-    'on_key_up': ['key', 'mod'],
-    'on_key_down': ['unicode', 'key', 'mod'],
-    'draw': [],
-    'on_music_end': [],
+    "on_mouse_down": ["pos", "button"],
+    "on_mouse_up": ["pos", "button"],
+    "on_mouse_move": ["pos", "buttons", "rel"],
+    "on_key_up": ["key", "mod"],
+    "on_key_down": ["unicode", "key", "mod"],
+    "draw": [],
+    "on_music_end": [],
 }
 
 
@@ -120,28 +109,19 @@ class InvalidParameter(Exception):
 
 class SpellCheckResult:
     def warn(self, msg, found, suggestion):
-        print(msg.format(
-            found=found,
-            suggestion=suggestion
-        ))
+        print(msg.format(found=found, suggestion=suggestion))
 
     def warn_event_handlers(self, typos, missing):
         if not typos or missing:
             return
-        print(
-            "Warning: Found some 'on' functions that are not "
-            "valid event handlers.")
+        print("Warning: Found some 'on' functions that are not " "valid event handlers.")
         for found, suggestion in typos:
-            print("    {found} (did you mean {suggestion}?)".format(
-                found=found, suggestion=suggestion))
+            print("    {found} (did you mean {suggestion}?)".format(found=found, suggestion=suggestion))
         for f in missing:
             print("   ", f)
 
     def error(self, msg, found, suggestion):
-        raise InvalidParameter(msg.format(
-            found=found,
-            suggestion=suggestion
-        ))
+        raise InvalidParameter(msg.format(found=found, suggestion=suggestion))
 
 
 def spellcheck(namespace, result=SpellCheckResult()):
@@ -161,11 +141,7 @@ def spellcheck(namespace, result=SpellCheckResult()):
 
     typos, _ = compare(funcs, HOOKS)
     for found, suggestion in typos:
-        result.warn(
-            "Warning: found function named {found}: "
-            "did you mean {suggestion}?",
-            found, suggestion
-        )
+        result.warn("Warning: found function named {found}: " "did you mean {suggestion}?", found, suggestion)
 
     typos, missing = compare(funcs, EVENT_HOOKS)
     maybe_hook = re.compile("on[A-Z_]")
@@ -174,11 +150,7 @@ def spellcheck(namespace, result=SpellCheckResult()):
 
     typos, _ = compare(consts, CONSTS)
     for found, suggestion in typos:
-        result.warn(
-            "Warning: found constant named {found}: "
-            "did you mean {suggestion}?",
-            found, suggestion
-        )
+        result.warn("Warning: found constant named {found}: " "did you mean {suggestion}?", found, suggestion)
 
     for name, handler in funcs.items():
         try:
@@ -193,13 +165,9 @@ def spellcheck(namespace, result=SpellCheckResult()):
                 suggestions = suggest(param, valid)
                 if suggestions:
                     result.error(
-                        "%s() hook accepts no parameter {found}; "
-                        "did you mean {suggestion}?" % name,
+                        "%s() hook accepts no parameter {found}; " "did you mean {suggestion}?" % name,
                         param,
-                        suggestions[0]
+                        suggestions[0],
                     )
                 else:
-                    result.error(
-                        "%s() hook accepts no parameter {found}" % name,
-                        param, None
-                    )
+                    result.error("%s() hook accepts no parameter {found}" % name, param, None)

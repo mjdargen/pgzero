@@ -5,29 +5,19 @@ import pygame
 from pgzero.actor import calculate_anchor, Actor
 from pgzero.loaders import set_root
 
-
 TEST_MODULE = "pgzero.actor"
 TEST_DISP_W, TEST_DISP_H = (200, 100)
 
 
 class ModuleTest(unittest.TestCase):
     def test_calculate_anchor_with_float(self):
-        self.assertEqual(
-            calculate_anchor(1.23, "x", 12345),
-            1.23
-        )
+        self.assertEqual(calculate_anchor(1.23, "x", 12345), 1.23)
 
     def test_calculate_anchor_centre(self):
-        self.assertEqual(
-            calculate_anchor("center", "x", 100),
-            50
-        )
+        self.assertEqual(calculate_anchor("center", "x", 100), 50)
 
     def test_calculate_anchor_bottom(self):
-        self.assertEqual(
-            calculate_anchor("bottom", "y", 100),
-            100
-        )
+        self.assertEqual(calculate_anchor("bottom", "y", 100), 100)
 
 
 class ActorTest(unittest.TestCase):
@@ -105,20 +95,20 @@ class ActorTest(unittest.TestCase):
 
     def test_rotation(self):
         """An actor's pos must not drift with continued small rotation."""
-        a = Actor('alien', pos=(100.0, 100.0))
+        a = Actor("alien", pos=(100.0, 100.0))
         for _ in range(360):
             a.angle += 1.0
         self.assertEqual(a.pos, (100.0, 100.0))
 
     def test_opacity_default(self):
         """Ensure opacity is initially set to its default value."""
-        a = Actor('alien')
+        a = Actor("alien")
 
         self.assertEqual(a.opacity, 1.0)
 
     def test_opacity_value(self):
         """Ensure opacity gives the value it was set to."""
-        a = Actor('alien')
+        a = Actor("alien")
         expected_opacity = 0.54321
 
         a.opacity = expected_opacity
@@ -127,7 +117,7 @@ class ActorTest(unittest.TestCase):
 
     def test_opacity_min_boundry(self):
         """Ensure opacity is not set below minimum allowable level."""
-        a = Actor('alien')
+        a = Actor("alien")
 
         a.opacity = -0.1
 
@@ -135,7 +125,7 @@ class ActorTest(unittest.TestCase):
 
     def test_opacity_max_boundry(self):
         """Ensure opacity is not set above maximum allowable level."""
-        a = Actor('alien')
+        a = Actor("alien")
 
         a.opacity = 1.1
 

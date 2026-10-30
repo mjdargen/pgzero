@@ -1,6 +1,7 @@
--r requirements.txt
-tox
+-e .
 pytest
 pytest-cov
-flake8
+build
+twine
 pre-commit
+sphinx

@@ -142,11 +142,9 @@ class Actor:
     _flip_h = False
     _flip_v = False
     _flip_d = False
-    _images = []
     _animate_counter = 0
     fps = 5
     direction = 0
-    _sprite = None
     _collision_rect_spec = None
 
     def _build_transformed_surf(self):
@@ -169,7 +167,7 @@ class Actor:
         self._surface_cache = []
         self.__dict__["_rect"] = rect.ZRect((0, 0), (0, 0))
         self._collision_rect_spec = collision_rect
-        self._mask = None
+        self._images = []
 
         self.image = image
         self._init_position(pos, anchor, **kwargs)
@@ -234,7 +232,6 @@ class Actor:
         if function in self.function_order:
             i = self.function_order.index(function)
             del self._surface_cache[i:]
-            self._mask = None
         else:
             raise IndexError("function {!r} does not have a registered order." "".format(function))
 
@@ -337,10 +334,8 @@ class Actor:
 
     @angle.setter
     def angle(self, angle):
-        p = self.pos
         self._angle = angle
         self._update_pos()
-        self.pos = p
         self._update_transform(_set_angle)
 
     @property
@@ -359,10 +354,8 @@ class Actor:
 
     @scale.setter
     def scale(self, scale):
-        p = self.pos
         self._scale = scale
         self._update_pos()
-        self.pos = p
         self._update_transform(_set_scale)
 
     @property
@@ -371,10 +364,8 @@ class Actor:
 
     @flip_h.setter
     def flip_h(self, value):
-        p = self.pos
         self._flip_h = value
         self._update_pos()
-        self.pos = p
         self._update_transform(_set_flip)
 
     @property
@@ -383,10 +374,8 @@ class Actor:
 
     @flip_v.setter
     def flip_v(self, value):
-        p = self.pos
         self._flip_v = value
         self._update_pos()
-        self.pos = p
         self._update_transform(_set_flip)
 
     @property
@@ -395,10 +384,8 @@ class Actor:
 
     @flip_d.setter
     def flip_d(self, value):
-        p = self.pos
         self._flip_d = value
         self._update_pos()
-        self.pos = p
         self._update_transform(_set_flip)
 
     @property
@@ -542,14 +529,6 @@ class Actor:
         if now != self._animate_counter:
             self._animate_counter = now
             self.next_image()
-
-    @property
-    def sprite(self):
-        return self._sprite
-
-    @sprite.setter
-    def sprite(self, sprite):
-        self._sprite = sprite
 
     def colliderect(self, other):
         if hasattr(other, "_rect"):

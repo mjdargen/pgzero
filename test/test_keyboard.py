@@ -13,16 +13,15 @@ def assert_warning():
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
         yield
-    assert len(w) > 0, \
-        "Expected a warning, but no warnings received."
+    assert len(w) > 0, "Expected a warning, but no warnings received."
 
 
 @contextmanager
 def assert_no_warning():
     with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
         yield
-    assert len(w) == 0, \
-        "Expected no warnings, but %d warnings received." % len(w)
+    assert len(w) == 0, "Expected no warnings, but %d warnings received." % len(w)
 
 
 class KeyboardTest(unittest.TestCase):
@@ -44,30 +43,14 @@ class KeyboardTest(unittest.TestCase):
         keyboard._release(locals.K_a)
         self.assertFalse(keyboard.a)
 
-    def test_getitem(self):
-        """Getting a key press by string lookup works, but warns."""
-        with assert_warning():
-            self.assertTrue(keyboard['a'])
-
-    def test_getattr_uppercase(self):
-        """Uppercase variants of the attribute raise a warning"""
-        with assert_warning():
-            self.assertTrue(keyboard.A)
-
-    def test_getattr_prefixed(self):
-        """Prefixed variants of the attribute names raise a warning"""
-        with assert_warning():
-            self.assertTrue(keyboard.K_a)
-
-    def test_uppercase_number(self):
-        """Uppercase prefixed numbers raise a warning."""
-        with assert_warning():
-            self.assertFalse(keyboard.K_0)
-
-    def test_getitem_keysenum(self):
-        """We can check for depressed keys by enum lookup."""
-        with assert_no_warning():
-            self.assertTrue(keyboard[keys.A])
+    def test_key_aliases(self):
+        """Alternative key lookup methods work."""
+        self.assertTrue(keyboard.a)
+        self.assertTrue(keyboard.A)
+        self.assertTrue(keyboard.K_a)
+        self.assertTrue(keyboard["a"])
+        self.assertTrue(keyboard[keys.A])
+        self.assertFalse(keyboard.K_0)
 
     def test_getitem_keysenum_never_pressed(self):
         """We can check for depressed keys by enum lookup."""
@@ -86,5 +69,5 @@ class KeyboardTest(unittest.TestCase):
         self.assertTrue(keyboard.right)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

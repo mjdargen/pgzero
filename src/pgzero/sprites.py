@@ -47,6 +47,7 @@ class Sprite:
         self.row_number = row_number
         self.frame_count = frame_count
         self.fps = fps
+        self.transparent_color = transparent_color
         self.loop = loop
         self.finished = False
         self.frame_index = 0
@@ -92,17 +93,19 @@ class Sprite:
             self.row_number,
             self.frame_count,
             self.fps,
+            self.transparent_color,
+            self.loop,
         )
 
     def reset(self):
-        self.frame_index = 0
-        self.last_update_time = pygame.time.get_ticks()
+        self.set_frame(0)
 
     def set_frame(self, frame_index):
         if frame_index < 0 or frame_index >= len(self.images):
             raise ValueError(f"Frame index {frame_index} is out of range")
 
         self.frame_index = frame_index
+        self.finished = False
         self.last_update_time = pygame.time.get_ticks()
         return self.image
 
@@ -170,7 +173,9 @@ class SpriteActor(Actor):
 
     def update_animation(self):
         if not self._paused:
-            self.image = self._sprite.next_frame()
+            frame = self._sprite.next_frame()
+            if frame is not self._orig_surf:
+                self.image = frame
 
     def draw(self):
         self.update_animation()
