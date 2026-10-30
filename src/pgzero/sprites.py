@@ -98,14 +98,14 @@ class Sprite:
         )
 
     def reset(self):
-        self.frame_index = 0
-        self.last_update_time = pygame.time.get_ticks()
+        self.set_frame(0)
 
     def set_frame(self, frame_index):
         if frame_index < 0 or frame_index >= len(self.images):
             raise ValueError(f"Frame index {frame_index} is out of range")
 
         self.frame_index = frame_index
+        self.finished = False
         self.last_update_time = pygame.time.get_ticks()
         return self.image
 
