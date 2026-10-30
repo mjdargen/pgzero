@@ -13,7 +13,6 @@ import pgzero.screen
 import builtins
 
 from . import constants
-from typing import Any
 
 
 screen = None  # This global surface is what actors draw to
@@ -107,10 +106,11 @@ class Game:
         finally:
             self._is_restarting = False
 
-    def win(self, restart_after=None, clear_clock="immediate"):
+    def _end(self, state, restart_after, clear_clock):
+        """Leave the "playing" state, optionally scheduling a restart."""
         if self.state != "playing":
             return
-        self.state = "won"
+        self.state = state
 
         if self._clock and clear_clock == "immediate":
             self._clock.clear()
@@ -118,30 +118,15 @@ class Game:
         if restart_after is not None:
             restart_mode = clear_clock if clear_clock != "immediate" else "never"
             self.restart(restart_after, clear_clock=restart_mode)
+
+    def win(self, restart_after=None, clear_clock="immediate"):
+        self._end("won", restart_after, clear_clock)
 
     def lose(self, restart_after=None, clear_clock="immediate"):
-        if self.state != "playing":
-            return
-        self.state = "lost"
-
-        if self._clock and clear_clock == "immediate":
-            self._clock.clear()
-
-        if restart_after is not None:
-            restart_mode = clear_clock if clear_clock != "immediate" else "never"
-            self.restart(restart_after, clear_clock=restart_mode)
+        self._end("lost", restart_after, clear_clock)
 
     def over(self, restart_after=None, clear_clock="immediate"):
-        if self.state != "playing":
-            return
-        self.state = "over"
-
-        if self._clock and clear_clock == "immediate":
-            self._clock.clear()
-
-        if restart_after is not None:
-            restart_mode = clear_clock if clear_clock != "immediate" else "never"
-            self.restart(restart_after, clear_clock=restart_mode)
+        self._end("over", restart_after, clear_clock)
 
     # allows student creation of any variable for game, similar to Actor
     # def __getattr__(self, name: str) -> Any:
