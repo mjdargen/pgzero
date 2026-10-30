@@ -150,7 +150,6 @@ You can also run a specific file with:
     prepare_mod(mod)
     exec(code, mod.__dict__)
 
-    PGZeroGame.show_default_icon()
     try:
         run_mod(mod, fps=fps)
     finally:

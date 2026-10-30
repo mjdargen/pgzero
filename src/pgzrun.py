@@ -31,9 +31,7 @@ warnings.filterwarnings(
 )
 
 
-import pygame
 from pgzero.runner import prepare_mod, run_mod
-from pgzero.game import PGZeroGame, DISPLAY_FLAGS
 import sys
 
 
@@ -47,15 +45,6 @@ if not getattr(sys, "_pgzrun", None):
         )
 
     prepare_mod(mod)
-
-    # Create a hidden temporary display so top-level image loading works.
-    if pygame.display.get_surface() is None:
-        pygame.display.init()
-        PGZeroGame.show_default_icon()
-        pygame.display.set_mode(
-            (100, 100),
-            flags=(DISPLAY_FLAGS & ~pygame.SHOWN) | pygame.HIDDEN,
-        )
 
 
 def go():
