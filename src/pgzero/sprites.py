@@ -173,7 +173,9 @@ class SpriteActor(Actor):
 
     def update_animation(self):
         if not self._paused:
-            self.image = self._sprite.next_frame()
+            frame = self._sprite.next_frame()
+            if frame is not self._orig_surf:
+                self.image = frame
 
     def draw(self):
         self.update_animation()
