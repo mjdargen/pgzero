@@ -19,6 +19,19 @@ Input processing is a bit more complicated, but Pygame Zero allows you to
 easily define the ``update()`` and ``draw()`` functions within your game
 module.
 
+.. function:: start()
+
+    .. versionadded:: pgzero-mjd
+
+    Called once after your file has loaded and before the first ``draw()``,
+    and again every time the game restarts through ``game.restart()``
+    (including the automatic restarts after ``game.win()``, ``game.lose()``
+    and ``game.over()``).
+
+    ``start()`` must take no arguments. Put everything that has to be reset
+    for a new game in it: actor positions, velocities, lists of enemies,
+    scheduled clock events. See :doc:`game`.
+
 .. function:: draw()
 
     Called by Pygame Zero when it needs to redraw your game window.
