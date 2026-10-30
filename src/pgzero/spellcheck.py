@@ -87,6 +87,7 @@ EVENT_HOOKS = list(PGZeroGame.EVENT_HANDLERS.values())
 HOOKS = [
     'draw',
     'update',
+    'start',
 ]
 
 
