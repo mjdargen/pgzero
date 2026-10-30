@@ -2,8 +2,8 @@
 #
 #   1. Every push to main (a merged PR is a push to main) bumps the MINOR
 #      version automatically: v0.0.1 -> v0.1.0 -> v0.2.0 -> ...
-#      The workflow writes the new version into pyproject.toml, commits it,
-#      tags it, publishes it, and creates a GitHub Release.
+#      The workflow writes the new version into pyproject.toml, builds and
+#      publishes it, then commits and tags it and creates a GitHub Release.
 #
 #   2. Pushing a tag like v1.0.0 by hand publishes exactly that version.
 #      Use this for a major bump. The next merge to main then continues
@@ -140,19 +140,6 @@ jobs:
           fi
           git --no-pager diff -- pyproject.toml
 
-      - name: Commit and tag the release on main
-        if: env.MODE == 'bump'
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "chore(release): $TAG"
-          git tag -a "$TAG" -m "$TAG"
-          # Push the commit and the tag together (all or nothing). If main
-          # moved while this job was running the push is rejected and the job
-          # fails; the run for that newer push will do the bump instead.
-          git push --atomic origin HEAD:main "refs/tags/$TAG"
-
       - name: Build the sdist and wheel
         run: |
           set -euo pipefail
@@ -170,6 +157,23 @@ jobs:
           skip-existing: false
           # Attestations need PyPI "trusted publishing"; this uses a token.
           attestations: false
+
+      - name: Commit and tag the release on main
+        if: env.MODE == 'bump'
+        run: |
+          set -euo pipefail
+          # This runs only after the upload succeeded, so a failed upload (for
+          # example a missing PYPI_API_TOKEN) leaves no stray tag behind and the
+          # job can simply be re-run once the problem is fixed.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(release): $TAG"
+          git tag -a "$TAG" -m "$TAG"
+          # Push the commit and the tag together (all or nothing). If main
+          # moved while this job was running the push is rejected: the version
+          # is on PyPI but untagged, so tag the built commit by hand:
+          #   git tag -a $TAG -m $TAG $GITHUB_SHA && git push origin $TAG
+          git push --atomic origin HEAD:main "refs/tags/$TAG"
 
       - name: Create the GitHub Release with the built files attached
         env:
