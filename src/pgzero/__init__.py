@@ -5,4 +5,15 @@ use 'pgzrun' to run the game file.
 
 """
 
-__version__ = '1.3.dev0'
+try:
+    from importlib.metadata import PackageNotFoundError
+    from importlib.metadata import version as _dist_version
+
+    try:
+        __version__ = _dist_version("pgzero-mjd")
+    except PackageNotFoundError:
+        __version__ = "unknown"
+except ImportError:  # Python < 3.8
+    __version__ = "unknown"
+
+__all__ = ["__version__"]

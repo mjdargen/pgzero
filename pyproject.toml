@@ -1,14 +1,25 @@
 [project]
 name = "pgzero-mjd"
+version = "0.0.1"
 description = "A custom Pygame Zero build for class use"
 readme = "README.md"
+license = "LGPL-3.0-or-later"
+authors = [
+    {name = "Michael D'Argenio", email = "mjdargen@gmail.com"},
+]
 requires-python = ">=3.6, <3.14"
 dependencies = [
     "pygame>=2.6.1",
     "numpy",
     "pyfxr",
 ]
-version = "0.0.1"
+keywords = ["pygame", "pgzero", "games", "education"]
+classifiers = [
+    "Intended Audience :: Education",
+    "Programming Language :: Python :: 3",
+    "Topic :: Education",
+    "Topic :: Games/Entertainment",
+]
 
 [project.urls]
 Documentation = "https://pygame-zero.readthedocs.io/"
@@ -18,11 +29,18 @@ Source = "https://github.com/mjdargen/pgzero"
 pgzrun = "pgzero.runner:main"
 
 [build-system]
-requires = ["setuptools>=81", "setuptools-scm>=8"]
+requires = ["setuptools>=81"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools_scm]
-write_to = "src/pgzero/_version.py"
+[tool.setuptools]
+package-dir = {"" = "src"}
+py-modules = ["pgzrun"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+pgzero = ["data/*"]
 
 [tool.ruff]
 builtins = [

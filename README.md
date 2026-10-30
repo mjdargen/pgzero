@@ -4,6 +4,18 @@ The project is based on:
 
 https://github.com/lordmauve/pgzero
 
+Install it:
+
+```bash
+pip install pgzero-mjd
+```
+
+Run a game:
+
+```bash
+pgzrun my_game.py
+```
+
 Build instructions:
 
 ```bash
