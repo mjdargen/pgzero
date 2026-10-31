@@ -1,4 +1,4 @@
-import time
+import warnings
 import pygame
 from math import radians, sin, cos, atan2, degrees, sqrt
 
@@ -6,6 +6,7 @@ from . import game
 from . import loaders
 from . import rect
 from . import spellcheck
+from .sprites import Sprite
 
 ANCHORS = {
     "x": {
@@ -142,10 +143,17 @@ class Actor:
     _flip_h = False
     _flip_v = False
     _flip_d = False
-    _animate_counter = 0
-    fps = 5
-    direction = 0
     _collision_rect_spec = None
+
+    # Sprite animation
+    _sprite = None
+    _frame_index = 0
+    _animation_paused = False
+    _animation_finished = False
+    # When the current frame started showing, in milliseconds. None until the
+    # actor is next drawn, so time before the game starts, or spent paused,
+    # doesn't count.
+    _frame_time = None
 
     def _build_transformed_surf(self):
         cache_len = len(self._surface_cache)
@@ -167,7 +175,6 @@ class Actor:
         self._surface_cache = []
         self.__dict__["_rect"] = rect.ZRect((0, 0), (0, 0))
         self._collision_rect_spec = collision_rect
-        self._images = []
 
         self.image = image
         self._init_position(pos, anchor, **kwargs)
@@ -426,6 +433,14 @@ class Actor:
 
     @image.setter
     def image(self, image):
+        # A Sprite plays as an animation; any other image stops the animation.
+        if isinstance(image, Sprite):
+            self.sprite = image
+            return
+        self._sprite = None
+        self._set_image(image)
+
+    def _set_image(self, image):
         if isinstance(image, pygame.Surface):
             self._image_name = None
             self._orig_surf = image
@@ -495,34 +510,106 @@ class Actor:
         )
 
     def draw(self):
+        self._update_animation()
         s = self._build_transformed_surf()
         game.screen.blit(s, self._image_topleft())
 
     @property
-    def images(self):
-        return self._images
+    def sprite(self):
+        """The Sprite this actor is playing, or None."""
+        return self._sprite
 
-    @images.setter
-    def images(self, images):
-        self._images = images
-        if self._images:
-            self.image = self._images[0]
+    @sprite.setter
+    def sprite(self, sprite):
+        # Setting the same sprite again does nothing, so it is safe to set
+        # every frame.
+        if sprite is self._sprite:
+            return
+        if sprite is not None and not isinstance(sprite, Sprite):
+            raise TypeError(
+                f"actor.sprite must be a Sprite, not {sprite!r}. "
+                "To show a single image, use actor.image instead."
+            )
+        self._sprite = sprite
+        if sprite is not None:
+            self.reset_animation()
 
-    def next_image(self):
-        if not self._images:
+    @property
+    def frame_index(self):
+        return self._frame_index
+
+    @frame_index.setter
+    def frame_index(self, frame_index):
+        if self._sprite is None:
+            raise ValueError("This actor isn't playing a Sprite, so it has no frames.")
+        last = len(self._sprite.images) - 1
+        if not 0 <= frame_index <= last:
+            raise ValueError(f"Frame index {frame_index} is out of range. This sprite has frames 0 to {last}.")
+        self._frame_index = frame_index
+        self._animation_finished = False
+        self._frame_time = None
+        self._show_frame()
+
+    @property
+    def animation_finished(self):
+        """True once a Sprite that doesn't loop has played to the end."""
+        return self._animation_finished
+
+    def reset_animation(self):
+        """Play the Sprite again from its first frame."""
+        if self._sprite is not None:
+            self.frame_index = 0
+
+    def pause_animation(self):
+        self._animation_paused = True
+
+    def resume_animation(self):
+        self._animation_paused = False
+        self._frame_time = None
+
+    @property
+    def animation_paused(self):
+        return self._animation_paused
+
+    def _update_animation(self):
+        if self._sprite is None or self._animation_paused or self._animation_finished:
             return
 
-        if self.image in self._images:
-            current = self._images.index(self.image)
-            self.image = self._images[(current + 1) % len(self._images)]
-        else:
-            self.image = self._images[0]
+        # Hold the current frame while the game is paused with game.pause(),
+        # then carry on from it, rather than skipping ahead, on game.resume().
+        if getattr(game.current_game, "state", None) == "paused":
+            self._frame_time = None
+            return
 
-    def animate(self):
-        now = int(time.time() * self.fps)
-        if now != self._animate_counter:
-            self._animate_counter = now
-            self.next_image()
+        now = pygame.time.get_ticks()
+        if self._frame_time is None:
+            self._frame_time = now
+            return
+
+        frame_duration = 1000 / self._sprite.fps
+        steps = int((now - self._frame_time) // frame_duration)
+        if steps <= 0:
+            return
+
+        # Count on from when the frame was due rather than from now, so the
+        # animation keeps to its fps even though it is only checked once per
+        # game frame.
+        self._frame_time += steps * frame_duration
+
+        frame_count = len(self._sprite.images)
+        frame_index = self._frame_index + steps
+        if self._sprite.loop:
+            frame_index %= frame_count
+        elif frame_index >= frame_count:
+            frame_index = frame_count - 1
+            self._animation_finished = True
+        self._frame_index = frame_index
+        self._show_frame()
+
+    def _show_frame(self):
+        frame = self._sprite.images[self._frame_index]
+        if frame is not getattr(self, "_orig_surf", None):
+            self._set_image(frame)
 
     def colliderect(self, other):
         if hasattr(other, "_rect"):
@@ -595,3 +682,19 @@ class Actor:
     def unload_image(self):
         if self._image_name is not None:
             loaders.images.unload(self._image_name)
+
+
+class SpriteActor(Actor):
+    """Deprecated: Actor plays Sprites itself, e.g. Actor(fox_walk).
+
+    Kept so that games written for older versions still run.
+    """
+
+    def __init__(self, *args, **kwargs):
+        warnings.warn(
+            "SpriteActor is no longer needed and will be removed. "
+            "Use Actor instead, e.g. Actor(fox_walk).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(*args, **kwargs)

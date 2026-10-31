@@ -120,6 +120,30 @@ class PrepareModTest(unittest.TestCase):
         self.assertIs(builtins.game, pgzero_builtins.game)
 
 
+class AudioFallbackTest(unittest.TestCase):
+    """Games still run, silently, on computers with no sound device."""
+
+    def test_no_sound_device(self):
+        # An unknown audio driver fails to start, like a missing sound device.
+        # This runs in a new process because pygame starts when the runner is
+        # imported.
+        env = dict(os.environ, SDL_VIDEODRIVER='dummy', SDL_AUDIODRIVER='nosuchdriver')
+        script = (
+            'import os, pygame, pgzero.runner\n'
+            'print(pygame.mixer.get_init(), os.environ["SDL_AUDIODRIVER"])\n'
+        )
+        result = subprocess.run(
+            [sys.executable, '-c', script],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            timeout=60,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), '(22050, -16, 2) dummy')
+
+
 class IDEModeTest(unittest.TestCase):
     """Games can be started with ``import pgzrun`` and ``pgzrun.go()``.
 

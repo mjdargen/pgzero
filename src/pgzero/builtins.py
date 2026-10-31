@@ -2,8 +2,8 @@
 from . import clock
 from . import music
 from . import tone
-from .actor import Actor
-from .sprites import Sprite, SpriteActor
+from .actor import Actor, SpriteActor
+from .sprites import Sprite
 from .storage import storage
 from .keyboard import keyboard
 from .animation import animate
@@ -24,8 +24,8 @@ __all__ = [
     "screen",  # graphics output
     "Actor",
     "images",
-    "Sprite",
-    "SpriteActor",  # graphics
+    "Sprite",  # graphics
+    "SpriteActor",  # deprecated, kept so older games still run
     "sounds",
     "music",
     "tone",  # sound

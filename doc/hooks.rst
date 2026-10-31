@@ -19,6 +19,23 @@ Input processing is a bit more complicated, but Pygame Zero allows you to
 easily define the ``update()`` and ``draw()`` functions within your game
 module.
 
+.. function:: start()
+
+    Called once when the game starts, before the first ``update()`` and
+    ``draw()``, and again every time the game restarts with
+    :meth:`game.restart() <Game.restart>`.
+
+    Use it to set up everything that should start fresh in each new game,
+    such as your own variables and the positions of actors. Use ``global``
+    for variables that you change::
+
+        def start():
+            global lives
+            lives = 3
+            player.pos = (100, 400)
+
+    ``start()`` must take no arguments.
+
 .. function:: draw()
 
     Called by Pygame Zero when it needs to redraw your game window.

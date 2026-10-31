@@ -1,62 +1,53 @@
-Installing Pygame Zero
-======================
+Installing Pygame Zero Plus
+===========================
 
-On desktop systems
-~~~~~~~~~~~~~~~~~~
+Pygame Zero Plus is installed from PyPI as ``pgzero-plus``. It provides the same
+``pgzero`` package and ``pgzrun`` command as the original Pygame Zero, so
+**don't install both in the same Python environment**.
 
-::
+On Windows, type this in a terminal::
 
-    pip install pgzero
+    python -m pip install --upgrade pgzero-plus
 
-This will also install Pygame. Pre-compiled Pygame packages are available to pip
-for Windows & Linux (32-bit and 64-bit), and for Mac OS (64-bit only). If you
-have a different system, you'll need to find a way to install pygame first. Make
-sure you are using Python 3 not Python 2.
+On Mac or Linux, type this in a Terminal window::
 
-Mac
-'''
+    python3 -m pip install --upgrade pgzero-plus
 
-In a Terminal window, type
+This also installs pygame. On Python 3.10 and newer it installs `pygame-ce`_,
+the actively developed community edition of pygame. On older Pythons it
+installs ``pygame``. Both provide the same ``pygame`` module, so only one of
+them can be installed at a time.
 
-::
+.. _pygame-ce: https://pyga.me/
 
-   pip install pgzero
-
-
-Note that there are currently no Wheels for Pygame that support python 3.4 for Mac,
-so you will need to upgrade Python to >=3.6 (or use python 2.7) in
-order to be able to install pygame. For a list of available Wheels, please visit
-`pyPI_`
-
-.. _pyPI: https://pypi.org/project/Pygame/#files
-
-Linux
-'''''
-
-In a terminal window, type
-
-::
-
-   sudo pip install pgzero
+If there is no sound device, such as on some online coding platforms, games
+still run with silent sound.
 
 
-Some Linux systems call it ``pip3``; if the above command printed something
-like ``sudo: pip: command not found`` then try::
+Switching from Pygame Zero or pygame
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    sudo pip3 install pgzero
+If you have installed the original Pygame Zero (``pgzero``), or ``pygame`` on
+Python 3.10 or newer, uninstall them first. Then install Pygame Zero Plus,
+which installs the right pygame for your Python again.
 
-Sometimes pip is not installed and needs to be installed. If so try this before
-running the above commands again::
+On Windows::
 
+    python -m pip uninstall -y pgzero pgzero-plus pygame pygame-ce
+    python -m pip install pgzero-plus
 
-    sudo python3 -m ensurepip
+On Mac or Linux::
 
+    python3 -m pip uninstall -y pgzero pgzero-plus pygame pygame-ce
+    python3 -m pip install pgzero-plus
 
-On Raspberry Pi
-~~~~~~~~~~~~~~~
+Note that this replaces ``pygame`` for every program that uses that Python.
 
-pgzero has been installed by default since the release of Raspbian Jessie in
-September 2015!
+Raspberry Pi OS may come with the original Pygame Zero already installed. Use
+a `virtual environment`_ for Pygame Zero Plus there, so the two don't
+conflict.
+
+.. _`virtual environment`: https://docs.python.org/3/library/venv.html
 
 
 For flake8/pyflakes
@@ -70,7 +61,7 @@ If you use ``flake8``, you can add Pygame Zero's list of builtins to your
 .. code-block:: ini
 
     [flake8]
-    builtins = Actor,Rect,ZRect,animate,clock,exit,images,keyboard,keymods,keys,mouse,music,screen,sounds,storage,tone
+    builtins = Actor,Game,Rect,Sprite,ZRect,animate,clock,exit,game,images,keyboard,keymods,keys,load_tile_map_actors,mouse,music,screen,sounds,storage,tone
 
 If you use `pyflakes` directly then this is configured using the environment
 variable ``$PYFLAKES_BUILTINS``. On Linux and Mac you could write this in your
@@ -78,11 +69,11 @@ terminal or put it in your shell configuration file (like ``~/.bashrc``)
 
 .. code-block:: bash
 
-    PYFLAKES_BUILTINS=Actor,Rect,ZRect,animate,clock,exit,images,keyboard,keymods,keys,mouse,music,screen,sounds,storage,tone
+    PYFLAKES_BUILTINS=Actor,Game,Rect,Sprite,ZRect,animate,clock,exit,game,images,keyboard,keymods,keys,load_tile_map_actors,mouse,music,screen,sounds,storage,tone
     export PYFLAKES_BUILTINS
 
 On Windows:
 
 .. code-block:: none
 
-    set PYFLAKES_BUILTINS=Actor,Rect,ZRect,animate,clock,exit,images,keyboard,keymods,keys,mouse,music,screen,sounds,storage,tone
+    set PYFLAKES_BUILTINS=Actor,Game,Rect,Sprite,ZRect,animate,clock,exit,game,images,keyboard,keymods,keys,load_tile_map_actors,mouse,music,screen,sounds,storage,tone

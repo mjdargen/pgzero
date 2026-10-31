@@ -15,6 +15,7 @@ from . import constants
 from typing import Any
 
 screen = None  # This global surface is what actors draw to
+current_game = None  # The running game's Game object, so actors can tell when it is paused
 DISPLAY_FLAGS = pygame.SHOWN
 
 
@@ -493,6 +494,9 @@ class PGZeroGame:
 
         if game_obj is not None and hasattr(game_obj, "_bind_engine"):
             game_obj._bind_engine(start_callback=start, clock=pgzero.clock.clock)
+
+        global current_game
+        current_game = game_obj
 
         self.load_handlers()
         self.inject_global_handlers()

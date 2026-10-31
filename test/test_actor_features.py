@@ -367,61 +367,12 @@ class CollisionTest(ActorTestBase):
         self.assertFalse(a.collidepoint((120, 100)))
 
 
-class ImagesAnimationTest(ActorTestBase):
-    def test_images_default_empty(self):
-        a = Actor("alien")
-        self.assertEqual(a.images, [])
-
-    def test_set_images_shows_first(self):
+class OwnAttributesTest(ActorTestBase):
+    def test_images_is_an_ordinary_attribute(self):
+        """Students can keep their own list of images on an actor."""
         a = Actor("alien")
         a.images = ["alien_as_webp", "alien"]
-        self.assertEqual(a.image, "alien_as_webp")
-
-    def test_set_empty_images(self):
-        a = Actor("alien")
-        a.images = []
-        self.assertEqual(a.image, "alien")
-
-    def test_next_image_cycles(self):
-        a = Actor("alien")
-        a.images = ["alien", "alien_as_webp"]
-        a.next_image()
-        self.assertEqual(a.image, "alien_as_webp")
-        a.next_image()
-        self.assertEqual(a.image, "alien")
-
-    def test_next_image_from_image_not_in_list(self):
-        a = Actor("alien")
-        a.images = ["alien", "alien_as_webp"]
-        a.image = pygame.Surface((5, 5))
-        a.next_image()
-        self.assertEqual(a.image, "alien")
-
-    def test_next_image_without_images(self):
-        a = Actor("alien")
-        a.next_image()
-        self.assertEqual(a.image, "alien")
-
-    def test_images_are_per_actor(self):
-        a = Actor("alien")
-        b = Actor("alien")
-        a.images = ["alien", "alien_as_webp"]
-        self.assertEqual(b.images, [])
-
-    def test_animate_uses_fps(self):
-        a = Actor("alien")
-        a.images = ["alien", "alien_as_webp"]
-        a.fps = 5
-        with mock.patch("time.time", return_value=100.0):
-            a.animate()  # first call: counter changes from 0
-        self.assertEqual(a.image, "alien_as_webp")
-
-        with mock.patch("time.time", return_value=100.1):
-            a.animate()  # same 1/5 second slot: no change
-        self.assertEqual(a.image, "alien_as_webp")
-
-        with mock.patch("time.time", return_value=100.2):
-            a.animate()
+        self.assertEqual(a.images, ["alien_as_webp", "alien"])
         self.assertEqual(a.image, "alien")
 
 

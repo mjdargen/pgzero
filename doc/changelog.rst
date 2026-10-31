@@ -4,13 +4,28 @@ Changelog
 Pygame Zero Plus
 ----------------
 
-0.1.0 - Initial release
+0.0.1 - Initial release
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 * Enhanced Actors with scaling, flipping, opacity, and custom collisions.
-* Added Sprite and SpriteActor classes for sprite sheet animations.
+* Added Sprites: animations from a sprite sheet or a list of images, which
+  any Actor can play, e.g. ``Actor(fox_walk)``. Many actors can share one
+  Sprite, and animations hold still while the game is paused.
 * Added support for tilemaps created with Tiled Map Editor.
 * Added game management and restart functionality.
+* Added a ``start()`` hook, called when the game starts and on every restart.
+* ``screen.draw.rect()`` and ``screen.draw.filled_rect()`` also accept a
+  position and size, e.g. ``screen.draw.rect((20, 20), (100, 50), 'red')``.
+* ``music.is_playing()`` can check for a particular track, and
+  ``music.is_paused()`` was added.
+* Added ``clock.clear()`` to unschedule everything.
+* Games still run, with silent sound, on computers without a sound device.
+* Uppercase keyboard names such as ``keyboard.LEFT`` no longer print
+  deprecation warnings.
+* Uses pygame-ce on Python 3.10 and newer, and supports Python 3.14 and 3.15.
+* The tone generator no longer needs pyfxr. Tones now last exactly as long as
+  requested, and waveforms can be given by name, e.g.
+  ``tone.play('C4', 1, waveform='square')``.
 
 Original Pygame Zero
 --------------------

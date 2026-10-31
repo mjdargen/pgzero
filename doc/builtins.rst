@@ -68,14 +68,20 @@ draw images to the screen ("blit" them).
         Draw a filled circle.
 
     .. method:: draw.rect(rect, (r, g, b), width=1)
+                draw.rect((x, y), (w, h), (r, g, b), width=1)
 
         Draw the outline of a rectangle with a certain line width.
 
-        Takes a :ref:`Rect <rect>`.
+        Takes a :ref:`Rect <rect>`, or the position of the top-left corner
+        and the size of the rectangle::
+
+            screen.draw.rect((20, 20), (100, 50), 'yellow')
 
     .. method:: draw.filled_rect(rect, (r, g, b))
+                draw.filled_rect((x, y), (w, h), (r, g, b))
 
-        Draw a filled rectangle.
+        Draw a filled rectangle. Like ``draw.rect()``, this takes a
+        :ref:`Rect <rect>` or a position and size.
 
     .. method:: draw.text(text, [pos], **kwargs)
 
@@ -125,6 +131,10 @@ from files stored in the ``images`` and ``sounds`` subdirectories respectively.
 Pygame Zero will handle loading of these resources on demand and will cache
 them to avoid reloading them.
 
+Pygame Zero Plus also loads sprite sheets from a ``sprites`` directory (see
+:ref:`sprites`) and Tiled maps from a ``maps`` directory (see
+:ref:`tile-maps`).
+
 You generally need to ensure that your images are named with lowercase letters,
 numbers and underscores only. They also have to start with a letter.
 
@@ -155,8 +165,9 @@ Example::
 Images
 ''''''
 
-Pygame Zero can load images in ``.png``, ``.gif``, and ``.jpg`` formats. PNG is
-recommended: it will allow high quality images with transparency.
+Pygame Zero can load images in ``.png``, ``.gif``, ``.jpg``, ``.bmp`` and
+``.webp`` formats. PNG is recommended: it will allow high quality images with
+transparency.
 
 We need to ensure an images directory is set up. If your project contains the
 following files::
@@ -346,9 +357,19 @@ will be stopped.
 
     Unpause the music.
 
-.. function:: music.is_playing()
+.. function:: music.is_playing(name=None)
 
     Returns True if the music is playing (and is not paused), False otherwise.
+
+    If you give a track name, returns True only if that track is the one
+    playing::
+
+        if not music.is_playing('boss_theme'):
+            music.play('boss_theme')
+
+.. function:: music.is_paused()
+
+    Returns True if the music has been paused with ``pause()``.
 
 .. function:: music.fadeout(duration)
 
@@ -449,6 +470,11 @@ referring to a time value and not a count of things.)
         or because it has been scheduled to repeat with
         ``schedule_interval()``.
 
+    .. method:: clear()
+
+        Unschedule everything that has been scheduled. This also stops any
+        animations started with :func:`animate`.
+
 
 Note that the Pygame Zero clock only holds weak references to each callback
 you give it. It will not fire scheduled events if the objects and methods are
@@ -489,9 +515,14 @@ attribute to some new image name::
 
     alien.image = 'alien_hurt'
 
+You can also give an actor a :ref:`Sprite <sprites>` instead of an image name,
+to make it play an animation, or a Pygame ``Surface``.
+
 Actors have all the same attributes and methods as :ref:`Rect <rect>`,
 including methods like `.colliderect()`__ which can be used to test whether
-two actors have collided.
+two actors have collided. Collisions use the actor's
+:ref:`collision rectangle <collision-rect>`, which is the whole image unless
+you choose a smaller one.
 
 .. __: https://www.pygame.org/docs/ref/rect.html#pygame.Rect.colliderect
 
@@ -660,6 +691,423 @@ of transparency:
     through a ghost.
 
 
+.. _scaling:
+
+Scaling
+'''''''
+
+The ``.scale`` attribute of an Actor makes it bigger or smaller. ``1.0`` is the
+image's normal size, ``2.0`` is twice as big and ``0.5`` is half the size::
+
+    boss = Actor('alien', center=(400, 300))
+    boss.scale = 3
+
+The actor stays at the same ``pos`` while it changes size. Its ``width``,
+``height`` and collision rectangle change size too.
+
+
+.. _flipping:
+
+Flipping
+''''''''
+
+Setting ``.flip_h`` to ``True`` mirrors an Actor's image from left to right,
+and ``.flip_v`` flips it upside down. This saves drawing a second image for a
+character that can face either way::
+
+    def update():
+        if keyboard.left:
+            player.x -= 3
+            player.flip_h = True
+        elif keyboard.right:
+            player.x += 3
+            player.flip_h = False
+
+``.flip_d`` flips the image along its diagonal, swapping its width and height.
+This is the third kind of flip that `Tiled`_ uses for map tiles. Together with
+``flip_h`` and ``flip_v`` it can turn a tile to face any of the four
+directions.
+
+
+.. _collision-rect:
+
+Collision rectangle
+'''''''''''''''''''
+
+Many images have empty, transparent space around the character. By default,
+an actor collides using its whole image, so two actors can "collide" when only
+their empty space touches.
+
+Give an actor a smaller ``collision_rect`` to fix this. It can be set when
+the actor is created, or changed later:
+
+* ``(width, height)`` - a rectangle of this size in the middle of the image.
+* ``(width, height, offset_x, offset_y)`` - the same, but with its center moved
+  ``offset_x`` pixels right and ``offset_y`` pixels down from the image's
+  center.
+* ``None`` - use the whole image again.
+
+For example::
+
+    # Only a 30x40 area, 10 pixels below the image's center, counts
+    alien = Actor('alien', collision_rect=(30, 40, 0, 10))
+
+The collision rectangle becomes the actor's rectangle: ``pos``, ``x``, ``y``,
+``width``, ``height``, the anchor point and methods like ``colliderect()``
+all use it. The image is still drawn in full around it. The collision
+rectangle grows and shrinks with :ref:`scale <scaling>` and turns with
+:ref:`flips <flipping>` and :ref:`rotation <rotation>`.
+
+.. method:: Actor.draw_collision_rect()
+
+    Draw the collision rectangle as a red outline. Call this in ``draw()``,
+    after drawing the actor, to check that the rectangle is where you expect.
+
+
+To animate an actor, give it a :ref:`Sprite <sprites>`.
+
+.. _`Tiled`: https://www.mapeditor.org/
+
+
+.. _sprites:
+
+Sprite Animations
+-----------------
+
+A ``Sprite`` is one animation, such as walking or jumping: its frames, how
+fast to play them, and whether to loop. Give an :ref:`Actor <actor>` a Sprite
+instead of an image name, and the actor plays it, moving on to the next frame
+by itself each time it is drawn.
+
+The frames usually come from a sprite sheet: one image that contains every
+frame, laid out in a grid. Each row holds one animation, with its frames side
+by side and all the same size. Put sprite sheets in a ``sprites`` directory
+next to your game::
+
+    platformer.py
+    sprites/hero.png
+
+Then make a Sprite for each row you want to use::
+
+    # hero.png has 48x48 frames. Row 0 has 4 standing frames and
+    # row 1 has 6 walking frames.
+    standing = Sprite('hero', frame_width=48, frame_height=48, row=0, frames=4, fps=6)
+    walking = Sprite('hero', frame_width=48, frame_height=48, row=1, frames=6, fps=12)
+
+    hero = Actor(standing, pos=(100, 300))
+
+    def update():
+        if keyboard.right:
+            hero.x += 3
+            hero.sprite = walking
+        else:
+            hero.sprite = standing
+
+    def draw():
+        screen.clear()
+        hero.draw()
+
+Instead of a sprite sheet, a Sprite can be made from a list of image names in
+the ``images`` directory::
+
+    flapping = Sprite(['bird1', 'bird2', 'bird3'], fps=8)
+
+Many actors can share one Sprite. Each actor keeps track of its own frame, so
+they don't all move in step::
+
+    enemies = [Actor(walking, pos=(x, 300)) for x in range(100, 600, 100)]
+
+An actor can switch between Sprites and still images. Setting ``image`` stops
+the animation::
+
+    hero.image = 'hero_hurt'
+
+.. class:: Sprite(image_name, frame_width, frame_height, row=0, frames=None, fps=10, transparent_color=None, loop=True)
+
+    One animation.
+
+    :param image_name: The name of the sprite sheet in the ``sprites``
+                       directory, without the file extension. Or a list of
+                       image names in the ``images`` directory, in which case
+                       leave out the next five parameters.
+    :param frame_width: The width of each frame, in pixels.
+    :param frame_height: The height of each frame, in pixels.
+    :param row: Which row of the sheet to use. The top row is ``0``.
+    :param frames: How many frames to take from the row, starting at the
+                   left edge. Leave it out to use every frame that fits
+                   across the sheet.
+    :param fps: How many frames to show each second.
+    :param transparent_color: A color to make see-through, for sheets that
+                              have a background color instead of
+                              transparency. ``-1`` uses the color of each
+                              frame's top-left pixel.
+    :param loop: If ``False``, the animation stops on its last frame instead
+                 of starting again.
+
+These Actor attributes and methods control the Sprite it is playing:
+
+.. attribute:: Actor.sprite
+
+    The Sprite being played, or ``None`` for a still image. Assigning a
+    different Sprite switches animation and starts the new one from its first
+    frame. Assigning the Sprite that is already playing does nothing, so it is
+    safe to do every frame. Assigning ``None`` stops on the current frame.
+
+.. attribute:: Actor.frame_index
+
+    The number of the frame showing, starting from ``0``. Assign to it to jump
+    to another frame.
+
+.. attribute:: Actor.animation_finished
+
+    ``True`` once a Sprite with ``loop=False`` has played to the end. For
+    example, to remove an explosion once it has finished::
+
+        def update():
+            for boom in explosions[:]:
+                if boom.animation_finished:
+                    explosions.remove(boom)
+
+.. method:: Actor.reset_animation()
+
+    Play the Sprite again from its first frame.
+
+.. method:: Actor.pause_animation()
+
+    Stop on the current frame.
+
+.. method:: Actor.resume_animation()
+
+    Carry on animating after ``pause_animation()``.
+
+.. attribute:: Actor.animation_paused
+
+    ``True`` while the animation is paused.
+
+While the whole game is paused with :meth:`game.pause() <Game.pause>`, every
+actor holds its current frame, and carries on from it after ``game.resume()``.
+
+
+.. _tile-maps:
+
+Tile Maps
+---------
+
+`Tiled`_ is a free map editor for building game levels out of small square
+tiles. Pygame Zero Plus can load maps saved by Tiled, so you can design a
+level in Tiled and turn every tile into an :ref:`Actor <actor>`.
+
+Save the map (``.tmx``), any external tilesets (``.tsx``) and the tileset
+images together in a ``maps`` directory next to your game::
+
+    adventure.py
+    maps/level1.tmx
+    maps/terrain.tsx
+    maps/terrain.png
+
+Tiled must save tile layers in CSV format, which is its default. Only tile
+layers at the top level of the map are loaded: object layers, image layers and
+layers inside a group are ignored.
+
+.. function:: load_tile_map_actors(tmx_name, scale=1)
+
+    Load a Tiled map from the ``maps`` directory. The extension is optional.
+
+    Returns a dictionary from each tile layer's name to a list of the tiles
+    in that layer. Empty cells are left out. Each tile is an Actor, so you
+    can draw it, move it and check it for collisions.
+
+    :param scale: Draw the map bigger or smaller. ``2`` makes every tile, and
+                  the space between them, twice the size.
+
+For example, with a map that has layers called ``ground`` and ``walls``::
+
+    WIDTH = 640
+    HEIGHT = 480
+
+    layers = load_tile_map_actors('level1')
+    ground = layers['ground']
+    walls = layers['walls']
+
+    player = Actor('player', pos=(100, 100))
+
+    def update():
+        old_pos = player.pos
+        if keyboard.left:
+            player.x -= 2
+        if keyboard.right:
+            player.x += 2
+        if player.collidelist(walls) != -1:
+            player.pos = old_pos  # Don't walk through walls
+
+    def draw():
+        screen.clear()
+        for tile in ground + walls:
+            tile.draw()
+        player.draw()
+
+Tiles that were flipped or rotated in Tiled keep those changes, using the
+actor's :ref:`flip attributes <flipping>`. Each tile also knows where it came
+from:
+
+.. class:: Tile
+
+    .. attribute:: map_col
+                   map_row
+
+        The tile's column and row in the map.
+
+    .. attribute:: tile_col
+                   tile_row
+
+        The column and row of the tile's image in its tileset.
+
+    .. attribute:: tile_gid
+
+        The tile's number in Tiled. Use this to find every tile of one kind,
+        such as all the coins.
+
+    .. method:: set_map_position(map_col, map_row)
+
+        Move the tile to another cell of the map.
+
+    .. method:: set_tile_image(tile_col, tile_row)
+
+        Change the tile to show another image from the same tileset.
+
+    .. method:: copy(map_col=None, map_row=None)
+
+        Return a new tile like this one, optionally in a different cell.
+
+
+.. _game:
+
+Game State
+----------
+
+The ``game`` object keeps track of things most games need, such as the score,
+the level, and whether the player has won or lost. It saves you from writing
+lots of ``global`` variables, and it can restart the game for you.
+
+::
+
+    def update():
+        if game.state != 'playing':
+            return
+
+        if player.colliderect(coin):
+            game.add_score(10)
+        if player.colliderect(enemy):
+            game.lose(restart_after=3)
+
+    def draw():
+        screen.clear()
+        player.draw()
+        screen.draw.text(f'Score: {game.score}', (10, 10))
+        if game.state == 'lost':
+            screen.draw.text('Game over!', center=(WIDTH / 2, HEIGHT / 2))
+
+``game`` updates its ``timer`` and ``frame_count`` each frame by itself.
+Everything else changes only when your code changes it. For example, pausing
+the game doesn't stop ``update()`` being called, so check ``game.state`` in
+``update()`` to decide what should still move.
+
+You can store your own values on ``game`` too, such as ``game.lives = 3``.
+
+.. class:: Game
+
+    .. attribute:: state
+
+        One of ``'playing'``, ``'paused'``, ``'won'``, ``'lost'`` or
+        ``'over'``. It starts as ``'playing'``.
+
+    .. attribute:: score
+
+        Starts at ``0``.
+
+    .. attribute:: level
+
+        Starts at ``1``.
+
+    .. attribute:: timer
+
+        Seconds spent in the ``'playing'`` state. It doesn't count while the
+        game is paused or over.
+
+    .. attribute:: frame_count
+
+        How many frames have run.
+
+    .. attribute:: data
+
+        An empty dictionary for anything else you want to keep track of.
+
+    .. method:: add_score(points)
+
+        Add ``points`` to the score.
+
+    .. method:: next_level()
+
+        Add 1 to the level.
+
+    .. method:: pause()
+
+        Change from ``'playing'`` to ``'paused'``.
+
+    .. method:: resume()
+
+        Change from ``'paused'`` back to ``'playing'``.
+
+    .. method:: start()
+
+        Change the state to ``'playing'``.
+
+    .. method:: win(restart_after=None, clear_clock='immediate')
+                lose(restart_after=None, clear_clock='immediate')
+                over(restart_after=None, clear_clock='immediate')
+
+        End the game, changing the state to ``'won'``, ``'lost'`` or
+        ``'over'``. This does nothing unless the state is ``'playing'``, so it
+        is safe to call every frame.
+
+        :param restart_after: If given, restart the game after this many
+                              seconds.
+        :param clear_clock: When to cancel everything scheduled with
+                            :ref:`clock <clock>`, so that timers from the
+                            finished game don't keep firing: ``'immediate'``
+                            (now), ``'on_restart'`` (when the game restarts)
+                            or ``'never'``.
+
+    .. method:: restart(delay=0, clear_clock='immediate')
+
+        Start the game again, after ``delay`` seconds if given. This resets
+        ``state``, ``score``, ``level``, ``timer``, ``frame_count`` and
+        ``data``, then calls your :func:`start` function.
+
+        ``clear_clock`` works the same as for ``win()``.
+
+    .. method:: reset()
+
+        Set ``state``, ``score``, ``level``, ``timer``, ``frame_count`` and
+        ``data`` back to their starting values, without calling ``start()``.
+
+.. tip::
+
+    ``restart()`` only resets the values above. Set up everything else, such
+    as your own variables, actor positions and ``game.lives``, in a
+    :func:`start` function, so that it is set up again on every restart::
+
+        def start():
+            global coins
+            coins = []
+            game.lives = 3
+            player.pos = (100, 100)
+
+When you call ``restart()`` or ``win()`` with a delay, call it from inside a
+function such as ``update()``. The game must already be running for the delay
+to work.
+
+
 The Keyboard
 ------------
 
@@ -680,11 +1128,8 @@ The full set of key constants is given in the `Buttons and Keys`_
 documentation, but the attributes are lowercase, because these are variables
 not constants.
 
-.. deprecated:: 1.1
-
-    Uppercase and prefixed attribute names (eg. ``keyboard.LEFT`` or
-    ``keyboard.K_a``) are now deprecated; use lowercase attribute names
-    instead.
+Uppercase and prefixed attribute names (eg. ``keyboard.LEFT`` or
+``keyboard.K_a``) also work, but lowercase names are recommended.
 
 .. _`Buttons and Keys`: hooks.html#buttons-and-keys
 
@@ -772,11 +1217,15 @@ Tone Generator
 
 Pygame Zero can play tones using a built-in synthesizer.
 
-.. function:: tone.play(pitch, duration)
+.. function:: tone.play(pitch, duration, waveform='sin', volume=0.8)
 
     Play a note at the given pitch for the given duration.
 
-    Duration is in seconds.
+    Duration is in seconds, up to a maximum of 4 seconds.
+
+    The `waveform` changes the sound of the note. It can be ``'sin'`` (a pure,
+    soft tone), ``'square'``, ``'saw'`` or ``'triangle'``. `volume` is from 0
+    (silent) to 1 (loudest).
 
     The `pitch` can be specified as a number in which case it is the frequency
     of the note in hertz.
@@ -792,7 +1241,7 @@ Creating notes, particularly long notes, takes time - up to several
 milliseconds. You can create your notes ahead of time so that this doesn't slow
 your game down while it is running:
 
-.. function:: tone.create(pitch, duration)
+.. function:: tone.create(pitch, duration, waveform='sin', volume=0.8)
 
     Create and return a Sound object.
 

@@ -10,8 +10,24 @@ import sys
 import os
 import pygame
 
-pygame.mixer.pre_init(frequency=22050, size=-16, channels=2)
-pygame.init()
+
+def init_pygame():
+    """Start pygame, using silent audio if there is no sound device.
+
+    pygame.init() doesn't raise when audio fails to start (e.g. on Codio,
+    which has no sound device). It leaves the mixer off, so the first sound
+    the game plays would raise an error. SDL reads SDL_AUDIODRIVER each time
+    audio starts, so trying again with the dummy driver gives working,
+    silent sound.
+    """
+    pygame.mixer.pre_init(frequency=22050, size=-16, channels=2)
+    pygame.init()
+    if not pygame.mixer.get_init():
+        os.environ["SDL_AUDIODRIVER"] = "dummy"
+        pygame.mixer.init()
+
+
+init_pygame()
 
 
 def _check_python_ok_for_pygame():

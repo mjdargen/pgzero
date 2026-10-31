@@ -5,7 +5,7 @@ Principles of Pygame Zero
 Please read the following carefully before contributing.
 
 Because Pygame Zero is aimed at beginners we must take extra care to avoid
-introducting hurdles for programmers who have not yet learned to deal with
+introducing hurdles for programmers who have not yet learned to deal with
 them.
 
 

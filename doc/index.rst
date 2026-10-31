@@ -3,13 +3,19 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to Pygame Zero
-======================
+Welcome to Pygame Zero Plus
+===========================
 
 Pygame Zero is for creating games without boilerplate.
 
 It is intended for use in education, so that teachers can teach basic
 programming without needing to explain the Pygame API or write an event loop.
+
+Pygame Zero Plus is a fork of `Pygame Zero`_ that adds :ref:`sprite animations
+<sprites>`, :ref:`tile maps <tile-maps>`, a :ref:`game state object <game>`
+and more features for :ref:`Actors <actor>`, while keeping the same API.
+
+.. _`Pygame Zero`: https://github.com/lordmauve/pgzero
 
 
 Courses
@@ -46,25 +52,6 @@ User Guide
     resources
     other-libs
     changelog
-
-
-Stickers by |Sticker Mule|
---------------------------
-
-.. |Sticker Mule| image:: _static/sticker-mule.svg
-    :alt: Sticker Mule
-    :height: 40
-    :target: https://www.stickermule.com/supports/opensource
-
-`Sticker Mule`_ have graciously offered to provide Pygame Zero laptop stickers
-for learners.
-
-.. _`Sticker Mule`: https://www.stickermule.com/supports/opensource
-
-.. toctree::
-    :maxdepth: 3
-
-    stickers
 
 
 Improving Pygame Zero

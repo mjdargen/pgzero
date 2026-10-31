@@ -17,12 +17,15 @@ from pgzero.rect import Rect, ZRect
 ROOT = Path(__file__).parent
 
 
-def assert_screen_match(computed, name):
+def assert_screen_match(computed, name, max_diff_pixels=0):
     """Check that the image on the screen matches the reference image.
 
     If the reference image is missing, raise an exception, unless the
     environment variable $W2D_SAVE_REF is given; if given, save current output
     as new reference images. These will need to be checked and committed.
+
+    Up to max_diff_pixels pixels may differ, for shapes whose edges pygame and
+    pygame-ce draw slightly differently.
 
     """
     ref_image = ROOT / 'expected-image' / f'{name}.png'
@@ -48,7 +51,8 @@ def assert_screen_match(computed, name):
 
     failname = ROOT / 'failed-image' / f'{name}.png'
 
-    if np.allclose(comp_surf, exp_surf, atol=2):
+    differs = np.abs(comp_surf.astype(int) - exp_surf.astype(int)) > 2
+    if np.count_nonzero(differs.any(axis=2)) <= max_diff_pixels:
         if failname.exists():
             failname.unlink()
         return
@@ -185,7 +189,8 @@ class ScreenTest(unittest.TestCase):
         yellow = (255, 255, 0)
         """We can draw a filled polygon."""
         self.screen.draw.filled_polygon(poly, yellow)
-        assert_screen_match(self.surf, 'filled_polygon')
+        # pygame-ce fills about 100 edge pixels differently from pygame
+        assert_screen_match(self.surf, 'filled_polygon', max_diff_pixels=150)
 
     def test_polygon_errors(self):
         """draw.polygon raises errors as expected."""

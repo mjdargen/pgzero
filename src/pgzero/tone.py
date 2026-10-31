@@ -1,23 +1,19 @@
 """Tone generator for Pygame Zero.
 
-This tone generator is a wrapper for pyfxr, a custom Cython library for sound
-generation. Tones are kept in a LRU cache which in typical applications
-will reduce the number of times they need to be regenerated.
-
-To minimise the extent that pauses affect gameplay, the ``play()`` function
-offloads tone generation to a separate thread. Because tones are generated
-with numpy operations this should allow at least part of this work to happen
-on another CPU core, if present.
+Tones are generated with numpy: a waveform at the requested pitch, faded in
+and out briefly so that notes don't click. Samples are made in whatever format
+the mixer is using. Tones are kept in a LRU cache which in typical
+applications will reduce the number of times they need to be regenerated.
 
 """
+import re
 from functools import lru_cache
 from collections import namedtuple
-from threading import Thread, Lock
-from queue import Queue
 from enum import Enum
 
+import numpy
 import pygame
-import pyfxr
+import pygame.sndarray
 
 
 __all__ = (
@@ -29,36 +25,68 @@ __all__ = (
 # Longest note to allow
 MAX_DURATION = 4
 
+# Fade in and fade out times in seconds. Each is cut to a quarter of the note
+# for very short notes.
+FADE_IN = 0.01
+FADE_OUT = 0.05
+
 
 class Waveform(Enum):
-    SIN = pyfxr.Wavetable.sine()
-    SQUARE = pyfxr.Wavetable.square()
-    SAW = pyfxr.Wavetable.saw()
-    TRIANGLE = pyfxr.Wavetable.triangle()
+    SIN = 'sin'
+    SQUARE = 'square'
+    SAW = 'saw'
+    TRIANGLE = 'triangle'
 
 
 ToneParams = namedtuple('ToneParams', 'hz duration waveform volume')
 
 
-# lru_cache isn't threadsafe until Python 3.7, so protect it ourselves
-# https://bugs.python.org/issue28969
-cache_lock = Lock()
-note_queue = Queue()
-player_thread = None
+# numpy type, peak value and silent value for each pygame.mixer sample size
+SAMPLE_FORMATS = {
+    -8: (numpy.int8, 127, 0),
+    8: (numpy.uint8, 127, 128),
+    -16: (numpy.int16, 32767, 0),
+    16: (numpy.uint16, 32767, 32768),
+    32: (numpy.float32, 1.0, 0),
+}
+
+NOTE_PATTERN = re.compile(r'([A-G])([#b]?)([0-8])')
+
+# Semitones from A in the same octave
+NOTE_OFFSETS = {'C': -9, 'D': -7, 'E': -5, 'F': -4, 'G': -2, 'A': 0, 'B': 2}
+ACCIDENTALS = {'': 0, '#': 1, 'b': -1}
 
 
-def _play_thread():
-    """Play any notes requested by the game thread.
+def note_to_hertz(note):
+    """Convert a note name such as 'A4', 'C#5' or 'Bb3' to a frequency."""
+    match = NOTE_PATTERN.fullmatch(note)
+    if not match:
+        raise ValueError(
+            "%s is not a valid note. Notes are A-G, either natural, flat (b) "
+            "or sharp (#), in octaves 0-8, such as 'C4' or 'F#5'" % note
+        )
+    letter, accidental, octave = match.groups()
+    semitones = (
+        NOTE_OFFSETS[letter] + ACCIDENTALS[accidental] + 12 * (int(octave) - 4)
+    )
+    return 440 * 2 ** (semitones / 12)
 
-    Multithreading is useful because numpy releases the GIL while performing
-    many C operations.
+
+def _wave(waveform, cycles):
+    """Sample a waveform, returning values from -1 to 1.
+
+    cycles is an array of how many cycles of the wave have passed at each
+    sample.
 
     """
-    while True:
-        params = note_queue.get()
-        with cache_lock:
-            note = _create(params)
-        note.play()
+    if waveform is Waveform.SIN:
+        return numpy.sin(2 * numpy.pi * cycles)
+    position = cycles % 1
+    if waveform is Waveform.SQUARE:
+        return numpy.where(position < 0.5, 1.0, -1.0)
+    if waveform is Waveform.SAW:
+        return 2 * position - 1
+    return 4 * numpy.abs(position - 0.5) - 1
 
 
 def create(*args, **kwargs):
@@ -67,33 +95,37 @@ def create(*args, **kwargs):
     Return a Sound which can be played later.
 
     """
-    params = _convert_args(*args, **kwargs)
-    with cache_lock:
-        return _create(params)
+    return _create(_convert_args(*args, **kwargs))
 
 
 @lru_cache()
 def _create(params):
     """Actually create a tone."""
-    # Construct a mono tone of the right length
-    tone = pyfxr.tone(
-        pitch=params.hz,
-        sustain=max(0, params.duration - 0.2),
-        wavetable=params.waveform.value,
-    )
+    if not pygame.mixer.get_init():
+        pygame.mixer.init()
+    rate, size, channels = pygame.mixer.get_init()
+    try:
+        dtype, peak, silence = SAMPLE_FORMATS[size]
+    except KeyError:
+        raise ValueError(
+            "Tones can't be created for the mixer's sample size %r" % size
+        ) from None
 
-    # NB. pygame assumes that the sound format of any buffer object matches
-    # that of the current mixer settings. We use mixer.pre_init(22050, -16, 2)
-    # which means that it is expecting 22kHz audio stereo, but we're feeding it
-    # 44kHz mono - but, perhaps surprisingly, that works Ok. The extra samples
-    # get interpreted as the second channel.
-    #
-    # If we change the mixer to 44kHz we'd need to convert to stereo here by
-    # doubling samples.
-    #
-    # Really this is a mess and Pygame should support converting the format
-    # of buffers (as it does for .wav files).
-    snd = pygame.mixer.Sound(buffer=tone)
+    count = max(1, int(rate * params.duration))
+    samples = _wave(params.waveform, params.hz * numpy.arange(count) / rate)
+
+    envelope = numpy.ones(count)
+    fade_in = min(int(rate * FADE_IN), count // 4)
+    fade_out = min(int(rate * FADE_OUT), count // 4)
+    envelope[:fade_in] = numpy.linspace(0, 1, fade_in)
+    envelope[count - fade_out:] = numpy.linspace(1, 0, fade_out)
+
+    data = (samples * envelope * peak + silence).astype(dtype)
+    if channels > 1:
+        # Stereo (or more) sounds need the same samples in every channel
+        data = numpy.repeat(data[:, numpy.newaxis], channels, axis=1)
+
+    snd = pygame.sndarray.make_sound(data)
     snd.set_volume(params.volume)
     return snd
 
@@ -105,10 +137,10 @@ def _convert_args(pitch, duration, *, waveform=Waveform.SIN, volume=0.8):
             'Note duration %ss is too long: notes may be at most %ss long' %
             (duration, MAX_DURATION)
         )
-    if not duration:
-        raise ValueError("Note has zero duration")
+    if duration <= 0:
+        raise ValueError("Note duration must be more than 0 seconds")
     if isinstance(pitch, str):
-        pitch = pyfxr.note_to_hertz(pitch)
+        pitch = note_to_hertz(pitch)
     return ToneParams(pitch, duration, Waveform(waveform), volume)
 
 
@@ -123,10 +155,4 @@ def play(*args, **kwargs):
     create() and hold onto them, perhaps in an array.
 
     """
-    global player_thread
-    params = _convert_args(*args, **kwargs)
-    if not player_thread or not player_thread.is_alive():
-        pygame.mixer.init()
-        player_thread = Thread(target=_play_thread, daemon=True)
-        player_thread.start()
-    note_queue.put(params)
+    create(*args, **kwargs).play()
