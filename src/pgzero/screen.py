@@ -55,7 +55,7 @@ class SurfacePainter:
         try:
             iter(points)
         except TypeError:
-            raise TypeError("screen.draw.filled_polygon() requires an iterable of points to draw") from None  # noqa
+            raise TypeError("screen.draw.polygon() requires an iterable of points to draw") from None  # noqa
         points = [round_pos(point) for point in points]
         pygame.draw.polygon(self._surf, make_color(color), points, 1)
 

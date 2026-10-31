@@ -195,7 +195,7 @@ class ScreenTest(unittest.TestCase):
     def test_polygon_errors(self):
         """draw.polygon raises errors as expected."""
         yellow = (255, 255, 0)
-        with self.assertRaises(TypeError):
+        with self.assertRaisesRegex(TypeError, r"screen\.draw\.polygon\(\)"):
             self.screen.draw.polygon(2, yellow)
         with self.assertRaises(TypeError):
             self.screen.draw.polygon([2], yellow)

@@ -100,6 +100,14 @@ class ScaleTest(ActorTestBase):
         self.assertEqual(a.pos, (100, 100))
         self.assertEqual(a.bottomleft, (100, 100))
 
+    def test_negative_scale_counts_as_zero(self):
+        """e.g. a bouncy animate() tween that briefly goes below 0."""
+        a = Actor("alien", pos=(100, 100))
+        a.scale = -1
+        self.assertEqual(a.scale, 0)
+        self.assertEqual((a.width, a.height), (0, 0))
+        self.assertEqual(a.pos, (100, 100))
+
     def test_tiny_scale_surface_is_at_least_one_pixel(self):
         a = Actor("alien")
         a.scale = 0.001
@@ -374,6 +382,40 @@ class OwnAttributesTest(ActorTestBase):
         a.images = ["alien_as_webp", "alien"]
         self.assertEqual(a.images, ["alien_as_webp", "alien"])
         self.assertEqual(a.image, "alien")
+
+
+class MoveTowardsTest(ActorTestBase):
+    def test_moves_speed_pixels_towards_point(self):
+        a = Actor("alien", pos=(100, 100))
+        a.move_towards((400, 500), 5)  # a 3-4-5 triangle
+        self.assertAlmostEqual(a.x, 103)
+        self.assertAlmostEqual(a.y, 104)
+
+    def test_moves_towards_actor(self):
+        a = Actor("alien", pos=(100, 100))
+        b = Actor("alien", pos=(100, 50))
+        a.move_towards(b, 10)
+        self.assertEqual(a.pos, (100, 90))
+
+    def test_stops_on_target(self):
+        a = Actor("alien", pos=(100, 100))
+        a.move_towards((103, 104), 10)
+        self.assertEqual(a.pos, (103, 104))
+        a.move_towards((103, 104), 10)
+        self.assertEqual(a.pos, (103, 104))
+
+    def test_negative_speed_moves_away(self):
+        a = Actor("alien", pos=(100, 100))
+        a.move_towards((200, 100), -5)
+        self.assertEqual(a.pos, (95, 100))
+        # On the target there's no direction to move away in
+        a.move_towards((95, 100), -5)
+        self.assertEqual(a.pos, (95, 100))
+
+    def test_uses_anchor_position(self):
+        a = Actor("alien", topleft=(0, 0), anchor=("left", "top"))
+        a.move_towards((0, 10), 4)
+        self.assertEqual(a.topleft, (0, 4))
 
 
 class AngleDistanceTest(ActorTestBase):

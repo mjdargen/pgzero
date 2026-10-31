@@ -8,6 +8,8 @@ Pygame Zero Plus
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 * Enhanced Actors with scaling, flipping, opacity, and custom collisions.
+* Added ``actor.move_towards(target, speed)``, e.g. to make an enemy chase the
+  player.
 * Added Sprites: animations from a sprite sheet or a list of images, which
   any Actor can play, e.g. ``Actor(fox_walk)``. Many actors can share one
   Sprite, and animations hold still while the game is paused.

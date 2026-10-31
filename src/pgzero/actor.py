@@ -355,7 +355,9 @@ class Actor:
 
     @scale.setter
     def scale(self, scale):
-        self._scale = scale
+        # Like opacity, clamp rather than raise, so that a bouncy animate()
+        # tween that briefly goes below 0 doesn't crash the game.
+        self._scale = max(0.0, scale)
         self._update_pos()
         self._update_transform(_set_scale)
 
@@ -422,11 +424,6 @@ class Actor:
     def y(self, py):
         self.top = py - self._anchor[1]
 
-    # @property
-    # def image(self):
-    #     if self._image_name is not None:
-    #         return self._image_name
-    #     return self._orig_surf
     @property
     def image(self) -> str:
         return self._image_name or ""
@@ -678,6 +675,28 @@ class Actor:
         dx = tx - myx
         dy = ty - myy
         return sqrt(dx * dx + dy * dy)
+
+    def move_towards(self, target, speed):
+        """Move up to speed pixels straight towards target.
+
+        target is another Actor or an (x, y) position. The actor stops on the
+        target rather than going past it.
+        """
+        if isinstance(target, Actor):
+            tx, ty = target.pos
+        else:
+            tx, ty = target
+        distance = self.distance_to((tx, ty))
+        # max() also covers already being on the target with a negative speed,
+        # where there is no direction to move away in.
+        if distance <= max(speed, 0):
+            self.pos = (tx, ty)
+            return
+        myx, myy = self.pos
+        self.pos = (
+            myx + (tx - myx) / distance * speed,
+            myy + (ty - myy) / distance * speed,
+        )
 
     def unload_image(self):
         if self._image_name is not None:

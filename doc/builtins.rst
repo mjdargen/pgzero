@@ -4,6 +4,36 @@ Built-in Objects
 Pygame Zero provides useful built-in objects to help you make games easily.
 
 
+.. _window:
+
+The Game Window
+---------------
+
+Set these variables at the top of your game to set up its window:
+
+``WIDTH``, ``HEIGHT``
+    The size of the window in pixels. The default is 800 by 600.
+
+``TITLE``
+    The text in the window's title bar. The default is
+    ``'Pygame Zero Game'``.
+
+``ICON``
+    The name of an image in the ``images`` directory to show as the window's
+    icon. A small square image, such as 32 by 32 pixels, works best.
+
+For example::
+
+    WIDTH = 640
+    HEIGHT = 480
+    TITLE = 'Space Dodge'
+    ICON = 'rocket'
+
+These are read again on every frame, so changing them while the game is
+running, such as ``TITLE = 'Paused'``, changes the window. Use ``global`` to
+change them from inside a function.
+
+
 .. _screen:
 
 Screen
@@ -66,6 +96,17 @@ draw images to the screen ("blit" them).
     .. method:: draw.filled_circle(pos, radius, (r, g, b))
 
         Draw a filled circle.
+
+    .. method:: draw.polygon(points, (r, g, b))
+
+        Draw the outline of a shape with straight sides. ``points`` is a list
+        of the ``(x, y)`` corners, in order::
+
+            screen.draw.polygon([(100, 50), (150, 150), (50, 150)], 'red')
+
+    .. method:: draw.filled_polygon(points, (r, g, b))
+
+        Draw a filled shape with straight sides, such as a triangle or a star.
 
     .. method:: draw.rect(rect, (r, g, b), width=1)
                 draw.rect((x, y), (w, h), (r, g, b), width=1)
@@ -285,6 +326,16 @@ stop the sound as well as query its length in seconds:
 
         Get the duration of the sound in seconds.
 
+    .. method:: set_volume(volume)
+
+        Set how loud this sound plays, from 0 (silent) to 1 (full volume)::
+
+            sounds.explosion.set_volume(0.5)
+
+    .. method:: get_volume()
+
+        Get this sound's volume, from 0 to 1.
+
 You should avoid using the ``sounds`` object to play longer pieces of music.
 Because the sounds sytem will fully load the music into memory before playing
 it, this can use a lot of memory, as well as introducing a delay while the
@@ -388,6 +439,19 @@ will be stopped.
 .. function:: music.get_volume()
 
     Get the current volume of the music system.
+
+.. function:: music.rewind()
+
+    Start the current track again from the beginning.
+
+.. function:: music.get_pos()
+
+    Get how long the current track has been playing, in milliseconds.
+
+.. function:: music.set_pos(seconds)
+
+    Jump to a point in the current track. For OGG files, this is the number of
+    seconds from the start of the track.
 
 
 If you have started a music track playing using :func:`music.play_once()`, you
@@ -565,6 +629,18 @@ Changing ``center=(100, 100)`` to ``midbottom=(100, 200)`` gives you:
 If you don't specify an initial position, the actor will initially be
 positioned in the top-left corner (equivalent to ``topleft=(0, 0)``).
 
+.. tip::
+
+    To stop an actor from leaving the screen, move it back inside after
+    moving it, instead of checking each edge yourself::
+
+        def update():
+            if keyboard.left:
+                player.x -= 5
+            if keyboard.right:
+                player.x += 5
+            player.clamp_ip(screen.bounds())
+
 .. _anchor:
 
 Anchor point
@@ -628,13 +704,25 @@ Remember that angles loop round, so 0 degrees == 360 degrees == 720 degrees.
 Likewise -180 degrees == 180 degrees.
 
 
-Distance and angle to
-'''''''''''''''''''''
+Distance, angle and moving towards
+''''''''''''''''''''''''''''''''''
 
 .. versionadded:: 1.2
 
 Actors have convenient methods for calculating their distance or angle to other
-Actors or ``(x, y)`` coordinate pairs.
+Actors or ``(x, y)`` coordinate pairs, and for moving towards them.
+
+.. method:: Actor.move_towards(target, speed)
+
+    Move this actor up to ``speed`` pixels in a straight line towards target.
+    It stops on the target instead of going past it. Call it from
+    ``update()`` to keep moving, for example to make an enemy chase the
+    player::
+
+        def update():
+            enemy.move_towards(player, 2)
+
+    A negative ``speed`` moves away from the target instead.
 
 .. method:: Actor.distance_to(target)
 
@@ -703,7 +791,8 @@ image's normal size, ``2.0`` is twice as big and ``0.5`` is half the size::
     boss.scale = 3
 
 The actor stays at the same ``pos`` while it changes size. Its ``width``,
-``height`` and collision rectangle change size too.
+``height`` and collision rectangle change size too. A scale below ``0``
+counts as ``0``; to mirror an actor, use :ref:`flipping <flipping>` instead.
 
 
 .. _flipping:
@@ -1106,6 +1195,21 @@ You can store your own values on ``game`` too, such as ``game.lives = 3``.
 When you call ``restart()`` or ``win()`` with a delay, call it from inside a
 function such as ``update()``. The game must already be running for the delay
 to work.
+
+
+Quitting the Game
+-----------------
+
+.. function:: exit()
+
+    Close the game window and stop the game. Any sounds that are still
+    playing get up to a second to finish first::
+
+        def on_key_down(key):
+            if key == keys.ESCAPE:
+                exit()
+
+Players can also quit with Ctrl+Q (⌘+Q on a Mac), or by closing the window.
 
 
 The Keyboard
