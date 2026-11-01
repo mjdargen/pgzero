@@ -74,6 +74,95 @@ class ActorTest(unittest.TestCase):
             "Unexpected keyword argument 'toplift' (did you mean 'topleft'?)",
         )
 
+    def test_single_edge_kwarg(self):
+        """right=0 can't place an actor on its own, so say what to use instead."""
+        with self.assertRaises(TypeError) as cm:
+            Actor("alien", right=0)
+        self.assertEqual(
+            cm.exception.args[0],
+            "Actor() needs a position with both x and y in it, such as pos=(x, y) "
+            "or midright=(x, y), not just right=0. Or make the actor first, then "
+            "set it: actor.right = 0",
+        )
+
+    def test_single_x_kwarg_suggests_pos_once(self):
+        with self.assertRaisesRegex(TypeError, r"such as pos=\(x, y\), not just x=5\."):
+            Actor("alien", x=5)
+
+    def test_two_edge_kwargs_suggest_the_matching_position(self):
+        cases = [
+            (dict(left=0, top=10), "topleft=(0, 10)"),
+            (dict(right=800, bottom=600), "bottomright=(800, 600)"),
+            (dict(x=100, y=200), "pos=(100, 200)"),
+            (dict(x=100, bottom=300), "midbottom=(100, 300)"),
+            (dict(centerx=10, centery=20), "center=(10, 20)"),
+        ]
+        for kwargs, suggestion in cases:
+            with self.subTest(**kwargs):
+                with self.assertRaises(TypeError) as cm:
+                    Actor("alien", **kwargs)
+                self.assertIn(f"use {suggestion}.", cm.exception.args[0])
+
+    def test_scale_is_applied_before_the_position(self):
+        """The position given is where the scaled actor ends up."""
+        a = Actor("alien", midbottom=(100, 300), scale=2)
+        self.assertEqual(a.scale, 2)
+        self.assertEqual(a.midbottom, (100, 300))
+        self.assertEqual(a.width, 132)
+
+    def test_scale_without_a_position(self):
+        """With no position, the scaled actor's top-left corner is at (0, 0)."""
+        a = Actor("alien", scale=3)
+        self.assertEqual(a.topleft, (0, 0))
+
+    def test_other_settings_in_constructor(self):
+        """Actor(..., setting=...) is the same as setting it before positioning."""
+        a = Actor("alien", topleft=(10, 20), angle=90, opacity=0.5,
+                  flip_h=True, flip_v=True, flip_d=True)
+        self.assertEqual((a.angle, a.opacity), (90, 0.5))
+        self.assertTrue(a.flip_h and a.flip_v and a.flip_d)
+        self.assertEqual(a.topleft, (10, 20))
+
+        b = Actor("alien")
+        b.angle = 90
+        b.opacity = 0.5
+        b.flip_h = b.flip_v = b.flip_d = True
+        b.topleft = (10, 20)
+        self.assertEqual(a.pos, b.pos)
+        self.assertEqual((a.width, a.height), (b.width, b.height))
+
+    def test_sprite_kwarg(self):
+        with self.assertRaisesRegex(TypeError, r"instead of an image name, e\.g\. Actor\(fox_walk\)"):
+            Actor("alien", sprite=1)
+
+    def test_misspelled_pos(self):
+        for name in ["position", "postion"]:
+            with self.subTest(name=name):
+                with self.assertRaisesRegex(TypeError, r"did you mean 'pos'\?"):
+                    Actor("alien", **{name: (1, 2)})
+
+    def test_typos_of_other_kwargs(self):
+        cases = {"ancor": "anchor", "colision_rect": "collision_rect", "centre": "center",
+                 "sclae": "scale", "opactiy": "opacity"}
+        for typo, suggestion in cases.items():
+            with self.subTest(typo=typo):
+                with self.assertRaisesRegex(TypeError, f"did you mean '{suggestion}'"):
+                    Actor("alien", **{typo: (1, 2)})
+
+    def test_any_other_unknown_kwarg(self):
+        with self.assertRaises(TypeError) as cm:
+            Actor("alien", speed=5)
+        self.assertEqual(
+            cm.exception.args[0],
+            "Unexpected keyword argument 'speed'. Actor() accepts a position such as "
+            "pos or midbottom, anchor, collision_rect, scale, angle, opacity, flip_h, "
+            "flip_v, flip_d and visible.",
+        )
+
+    def test_two_edges_on_the_same_side(self):
+        with self.assertRaisesRegex(TypeError, r"not just left=1\."):
+            Actor("alien", left=1, right=2)
+
     def test_set_pos_relative_to_anchor(self):
         a = Actor("alien", anchor=(10, 10))
         a.pos = (100, 100)

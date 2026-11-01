@@ -48,6 +48,40 @@ SYMBOLIC_POSITIONS = set(
     )
 )
 
+# Actor() keyword arguments that aren't positions, for suggesting typo fixes
+OTHER_INIT_KWARGS = {
+    "pos", "anchor", "collision_rect", "scale", "angle", "opacity", "flip_h", "flip_v", "flip_d", "visible"
+}
+
+# Common spellings of pos that are too far from "pos" for the spellchecker
+POS_SPELLINGS = {"position", "postion", "positon", "possition"}
+
+# Single coordinates that students sometimes try to position an Actor() with,
+# mapped to which axis they set and a position that includes them.
+SINGLE_EDGES = {
+    "left": ("x", "midleft"),
+    "right": ("x", "midright"),
+    "centerx": ("x", "center"),
+    "x": ("x", "pos"),
+    "top": ("y", "midtop"),
+    "bottom": ("y", "midbottom"),
+    "centery": ("y", "center"),
+    "y": ("y", "pos"),
+}
+
+# The position to suggest when one x and one y coordinate are given together
+COMBINED_EDGES = {
+    ("left", "top"): "topleft",
+    ("right", "top"): "topright",
+    ("left", "bottom"): "bottomleft",
+    ("right", "bottom"): "bottomright",
+    ("centerx", "top"): "midtop",
+    ("centerx", "bottom"): "midbottom",
+    ("left", "centery"): "midleft",
+    ("right", "centery"): "midright",
+    ("centerx", "centery"): "center",
+}
+
 # Provides more meaningful default-arguments e.g. for display in IDEs etc.
 POS_TOPLEFT = None
 ANCHOR_CENTER = None
@@ -144,6 +178,12 @@ class Actor:
     _flip_v = False
     _flip_d = False
     _collision_rect_spec = None
+    # Where the image is drawn compared to the actor's rect; see draw()
+    _draw_offset = None
+
+    # Whether draw() draws the actor. Like Godot's visible, this only affects
+    # drawing: a hidden actor still moves, collides and keeps animating.
+    visible = True
 
     # Sprite animation
     _sprite = None
@@ -169,14 +209,53 @@ class Actor:
 
         return self._surface_cache[-1]
 
-    def __init__(self, image, pos=POS_TOPLEFT, anchor=ANCHOR_CENTER, collision_rect=None, **kwargs):
+    def __init__(
+        self,
+        image,
+        pos=POS_TOPLEFT,
+        anchor=ANCHOR_CENTER,
+        collision_rect=None,
+        *,
+        scale=1.0,
+        angle=0.0,
+        opacity=1.0,
+        flip_h=False,
+        flip_v=False,
+        flip_d=False,
+        visible=True,
+        **kwargs,
+    ):
         self._handle_unexpected_kwargs(kwargs)
 
         self._surface_cache = []
         self.__dict__["_rect"] = rect.ZRect((0, 0), (0, 0))
         self._collision_rect_spec = collision_rect
 
-        self.image = image
+        # The first argument is what the actor shows to begin with: an image
+        # name or a Sprite.
+        if isinstance(image, Sprite):
+            self.sprite = image
+        else:
+            self.image = image
+
+        # Scale, turn and flip the actor before placing it, so that the
+        # position given is where the finished actor ends up. Only set what
+        # was given, as each one recalculates the actor's size and position.
+        if scale != 1.0:
+            self.scale = scale
+        if angle != 0.0:
+            self.angle = angle
+        if opacity != 1.0:
+            self.opacity = opacity
+        if flip_h:
+            self.flip_h = flip_h
+        if flip_v:
+            self.flip_v = flip_v
+        if flip_d:
+            self.flip_d = flip_d
+        if not visible:
+            self.visible = False
+
         self._init_position(pos, anchor, **kwargs)
 
     def __getattr__(self, attr):
@@ -206,9 +285,57 @@ class Actor:
         if not unexpected_kwargs:
             return
 
-        typos, _ = spellcheck.compare(unexpected_kwargs, self.EXPECTED_INIT_KWARGS)
+        edges = sorted(k for k in unexpected_kwargs if k in SINGLE_EDGES)
+        if edges:
+            raise TypeError(self._single_edge_message(edges, kwargs))
+
+        for name in sorted(unexpected_kwargs):
+            if name == "sprite":
+                raise TypeError(
+                    "To play a Sprite, give it to Actor() instead of an image name, "
+                    "e.g. Actor(fox_walk)."
+                )
+            if name in POS_SPELLINGS:
+                raise TypeError(f"Unexpected keyword argument '{name}' (did you mean 'pos'?)")
+
+        typos, _ = spellcheck.compare(unexpected_kwargs, self.EXPECTED_INIT_KWARGS | OTHER_INIT_KWARGS)
         for found, suggested in typos:
             raise TypeError("Unexpected keyword argument '{}' (did you mean '{}'?)".format(found, suggested))
+
+        raise TypeError(
+            f"Unexpected keyword argument '{sorted(unexpected_kwargs)[0]}'. Actor() accepts "
+            "a position such as pos or midbottom, anchor, collision_rect, scale, angle, "
+            "opacity, flip_h, flip_v, flip_d and visible."
+        )
+
+    @staticmethod
+    def _single_edge_message(edges, kwargs):
+        """Explain how to position an Actor() given e.g. right=0 instead of a pair."""
+        x_edges = [e for e in edges if SINGLE_EDGES[e][0] == "x"]
+        y_edges = [e for e in edges if SINGLE_EDGES[e][0] == "y"]
+        if len(x_edges) == 1 and len(y_edges) == 1:
+            x_edge, y_edge = x_edges[0], y_edges[0]
+            if (x_edge, y_edge) == ("x", "y"):
+                name = "pos"
+            else:
+                # x and y are the actor's center unless it has another anchor
+                key = ("centerx" if x_edge == "x" else x_edge, "centery" if y_edge == "y" else y_edge)
+                name = COMBINED_EDGES[key]
+            x_value, y_value = kwargs[x_edge], kwargs[y_edge]
+            return (
+                f"Actor() needs a position with both x and y in it. Instead of "
+                f"{x_edge}={x_value!r}, {y_edge}={y_value!r}, use {name}=({x_value!r}, {y_value!r})."
+            )
+
+        edge = edges[0]
+        value = kwargs[edge]
+        suggestion = SINGLE_EDGES[edge][1]
+        examples = "pos=(x, y)" if suggestion == "pos" else f"pos=(x, y) or {suggestion}=(x, y)"
+        return (
+            f"Actor() needs a position with both x and y in it, such as {examples}, "
+            f"not just {edge}={value!r}. Or make the actor first, then set it: "
+            f"actor.{edge} = {value!r}"
+        )
 
     def _init_position(self, pos, anchor, **kwargs):
         if anchor is None:
@@ -236,6 +363,7 @@ class Actor:
         setattr(self, setter_name, position)
 
     def _update_transform(self, function):
+        self._draw_offset = None
         if function in self.function_order:
             i = self.function_order.index(function)
             del self._surface_cache[i:]
@@ -430,10 +558,14 @@ class Actor:
 
     @image.setter
     def image(self, image):
-        # A Sprite plays as an animation; any other image stops the animation.
+        # Images and Sprites are kept apart, so that actor.image and
+        # actor.sprite each only ever hold their own kind of thing. Whichever
+        # was set last is what the actor shows.
         if isinstance(image, Sprite):
-            self.sprite = image
-            return
+            raise TypeError(
+                "actor.image takes the name of an image, not a Sprite. To play a "
+                "Sprite, use actor.sprite instead, e.g. actor.sprite = fox_walk"
+            )
         self._sprite = None
         self._set_image(image)
 
@@ -449,6 +581,7 @@ class Actor:
         self._update_pos()
 
     def _update_pos(self):
+        self._draw_offset = None
         if not hasattr(self, "_orig_surf"):
             return
 
@@ -507,9 +640,31 @@ class Actor:
         )
 
     def draw(self):
-        self._update_animation()
-        s = self._build_transformed_surf()
-        game.screen.blit(s, self._image_topleft())
+        # This runs for every tile of a tile map on every frame, so it is
+        # written to do as little as possible for actors that are off screen.
+        if not self.visible:
+            # A Sprite's frame is worked out from the time when the actor is
+            # next drawn, so the animation carries on while it is hidden.
+            return
+        if self._sprite is not None:
+            self._update_animation()
+        r = self._rect
+        # Where the image goes compared to the rect only changes when the
+        # image, a transform or the rect's size does, so work it out once.
+        offset = self._draw_offset
+        if offset is None or offset[4] != r.w or offset[5] != r.h:
+            s = self._build_transformed_surf()
+            x, y = self._image_topleft()
+            offset = self._draw_offset = (x - r.x, y - r.y, s.get_width(), s.get_height(), r.w, r.h)
+        x = r.x + offset[0]
+        y = r.y + offset[1]
+
+        # Skip actors that are completely off the screen
+        screen = game.screen
+        width, height = screen.get_size()
+        if x >= width or y >= height or x + offset[2] <= 0 or y + offset[3] <= 0:
+            return
+        screen.blit(self._build_transformed_surf(), (x, y))
 
     @property
     def sprite(self):
@@ -518,9 +673,10 @@ class Actor:
 
     @sprite.setter
     def sprite(self, sprite):
-        # Setting the same sprite again does nothing, so it is safe to set
-        # every frame.
-        if sprite is self._sprite:
+        # Setting the Sprite that is already playing does nothing, so it is
+        # safe to set every frame. If it has finished, it plays again, so that
+        # e.g. an attack that doesn't loop plays each time it is set.
+        if sprite is self._sprite and not self._animation_finished:
             return
         if sprite is not None and not isinstance(sprite, Sprite):
             raise TypeError(
@@ -532,17 +688,18 @@ class Actor:
             self.reset_animation()
 
     @property
-    def frame_index(self):
+    def frame(self):
+        """The number of the Sprite frame showing (named as in Godot)."""
         return self._frame_index
 
-    @frame_index.setter
-    def frame_index(self, frame_index):
+    @frame.setter
+    def frame(self, frame):
         if self._sprite is None:
             raise ValueError("This actor isn't playing a Sprite, so it has no frames.")
         last = len(self._sprite.images) - 1
-        if not 0 <= frame_index <= last:
-            raise ValueError(f"Frame index {frame_index} is out of range. This sprite has frames 0 to {last}.")
-        self._frame_index = frame_index
+        if not 0 <= frame <= last:
+            raise ValueError(f"Frame {frame} is out of range. This sprite has frames 0 to {last}.")
+        self._frame_index = frame
         self._animation_finished = False
         self._frame_time = None
         self._show_frame()
@@ -555,7 +712,7 @@ class Actor:
     def reset_animation(self):
         """Play the Sprite again from its first frame."""
         if self._sprite is not None:
-            self.frame_index = 0
+            self.frame = 0
 
     def pause_animation(self):
         self._animation_paused = True
@@ -676,11 +833,11 @@ class Actor:
         dy = ty - myy
         return sqrt(dx * dx + dy * dy)
 
-    def move_towards(self, target, speed):
+    def move_toward(self, target, speed):
         """Move up to speed pixels straight towards target.
 
         target is another Actor or an (x, y) position. The actor stops on the
-        target rather than going past it.
+        target rather than going past it. Named like Godot's move_toward().
         """
         if isinstance(target, Actor):
             tx, ty = target.pos

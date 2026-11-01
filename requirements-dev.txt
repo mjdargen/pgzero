@@ -4,4 +4,4 @@ pytest-cov
 build
 twine
 pre-commit
-sphinx
+-r doc/requirements.txt

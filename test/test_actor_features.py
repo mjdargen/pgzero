@@ -15,6 +15,9 @@ from pgzero.actor import Actor, rotate_vector
 from pgzero.loaders import set_root
 from pgzero.rect import Rect
 
+# A size for the stand-in screen, so that Actor.draw() can tell the actor is on it
+SCREEN_SIZE = {"get_size.return_value": (800, 600)}
+
 ALIEN_W, ALIEN_H = 66, 92
 
 
@@ -182,7 +185,7 @@ class FlipTest(ActorTestBase):
         """The anchored pixel is drawn at the actor's pos."""
         a = Actor(self.surf, pos=(10, 20), anchor=("left", "top"))
         a.flip_d = True
-        with mock.patch.object(game, "screen", create=True) as screen:
+        with mock.patch.object(game, "screen", create=True, **SCREEN_SIZE) as screen:
             a.draw()
         surf, (x, y) = screen.blit.call_args[0]
         rx, ry = self.red_pixel(a)
@@ -317,7 +320,7 @@ class CollisionRectTest(ActorTestBase):
 
     def test_draw_collision_rect(self):
         a = Actor("alien", topleft=(5, 6), collision_rect=(20, 30))
-        with mock.patch.object(game, "screen", create=True) as screen, \
+        with mock.patch.object(game, "screen", create=True, **SCREEN_SIZE) as screen, \
                 mock.patch("pygame.draw.rect") as draw_rect:
             a.draw_collision_rect()
         draw_rect.assert_called_once_with(
@@ -326,7 +329,7 @@ class CollisionRectTest(ActorTestBase):
 
     def test_draw_blits_image_at_image_topleft(self):
         a = Actor("alien", pos=(100, 100), collision_rect=(20, 30, 10, 5))
-        with mock.patch.object(game, "screen", create=True) as screen:
+        with mock.patch.object(game, "screen", create=True, **SCREEN_SIZE) as screen:
             a.draw()
         surf, pos = screen.blit.call_args[0]
         self.assertEqual(surf.get_size(), (ALIEN_W, ALIEN_H))
@@ -384,37 +387,37 @@ class OwnAttributesTest(ActorTestBase):
         self.assertEqual(a.image, "alien")
 
 
-class MoveTowardsTest(ActorTestBase):
+class MoveTowardTest(ActorTestBase):
     def test_moves_speed_pixels_towards_point(self):
         a = Actor("alien", pos=(100, 100))
-        a.move_towards((400, 500), 5)  # a 3-4-5 triangle
+        a.move_toward((400, 500), 5)  # a 3-4-5 triangle
         self.assertAlmostEqual(a.x, 103)
         self.assertAlmostEqual(a.y, 104)
 
     def test_moves_towards_actor(self):
         a = Actor("alien", pos=(100, 100))
         b = Actor("alien", pos=(100, 50))
-        a.move_towards(b, 10)
+        a.move_toward(b, 10)
         self.assertEqual(a.pos, (100, 90))
 
     def test_stops_on_target(self):
         a = Actor("alien", pos=(100, 100))
-        a.move_towards((103, 104), 10)
+        a.move_toward((103, 104), 10)
         self.assertEqual(a.pos, (103, 104))
-        a.move_towards((103, 104), 10)
+        a.move_toward((103, 104), 10)
         self.assertEqual(a.pos, (103, 104))
 
     def test_negative_speed_moves_away(self):
         a = Actor("alien", pos=(100, 100))
-        a.move_towards((200, 100), -5)
+        a.move_toward((200, 100), -5)
         self.assertEqual(a.pos, (95, 100))
         # On the target there's no direction to move away in
-        a.move_towards((95, 100), -5)
+        a.move_toward((95, 100), -5)
         self.assertEqual(a.pos, (95, 100))
 
     def test_uses_anchor_position(self):
         a = Actor("alien", topleft=(0, 0), anchor=("left", "top"))
-        a.move_towards((0, 10), 4)
+        a.move_toward((0, 10), 4)
         self.assertEqual(a.topleft, (0, 4))
 
 
@@ -441,6 +444,72 @@ class AngleDistanceTest(ActorTestBase):
         self.assertAlmostEqual(a.distance_to(b), 10)
         self.assertAlmostEqual(b.distance_to(a), 10)
 
+
+class DrawTest(ActorTestBase):
+    """draw() puts the image in the right place and skips off-screen actors."""
+
+    def draw(self, actor):
+        """Draw actor on an 800x600 stand-in screen; return where it was blitted, or None."""
+        with mock.patch.object(game, "screen", create=True, **SCREEN_SIZE) as screen:
+            actor.draw()
+        if not screen.blit.called:
+            return None
+        return screen.blit.call_args[0][1]
+
+    def test_off_screen_actors_are_not_drawn(self):
+        for edge, value in [("right", 0), ("left", 800), ("bottom", 0), ("top", 600)]:
+            with self.subTest(**{edge: value}):
+                a = Actor("alien")
+                setattr(a, edge, value)
+                self.assertIsNone(self.draw(a))
+
+    def test_partly_on_screen_actors_are_drawn(self):
+        a = Actor("alien", topleft=(-65, 10))
+        assert_pos_close(self, self.draw(a), a._image_topleft())
+
+    def test_image_bigger_than_collision_rect(self):
+        """An image that reaches onto the screen is drawn, even if its collision rect doesn't."""
+        a = Actor("alien", collision_rect=(2, 2))
+        a.right = -1
+        self.assertIsNotNone(self.draw(a))
+
+    def test_drawn_in_the_right_place_after_changes(self):
+        a = Actor("alien", pos=(100, 100), collision_rect=(30, 40, 0, 10))
+        self.draw(a)
+        changes = [
+            lambda: setattr(a, "x", 300),
+            lambda: setattr(a, "collision_rect", (30, 40, 0, -10)),
+            lambda: setattr(a, "scale", 2),
+            lambda: setattr(a, "angle", 30),
+            lambda: setattr(a, "flip_d", True),
+            lambda: setattr(a, "image", "alien_as_webp"),
+            lambda: setattr(a, "width", 10),
+        ]
+        for change in changes:
+            change()
+            assert_pos_close(self, self.draw(a), a._image_topleft())
+
+
+    def test_hidden_actors_are_not_drawn(self):
+        a = Actor("alien", pos=(100, 100))
+        a.visible = False
+        self.assertIsNone(self.draw(a))
+        a.visible = True
+        assert_pos_close(self, self.draw(a), a._image_topleft())
+
+    def test_hidden_in_constructor(self):
+        a = Actor("alien", pos=(100, 100), visible=False)
+        self.assertFalse(a.visible)
+        self.assertIsNone(self.draw(a))
+
+    def test_hidden_actors_still_move_and_collide(self):
+        """Like Godot, visible only affects drawing."""
+        a = Actor("alien", pos=(100, 100), visible=False)
+        b = Actor("alien", pos=(110, 100))
+        self.assertTrue(b.colliderect(a))
+        self.assertTrue(a.colliderect(b))
+        a.move_toward((200, 100), 10)
+        self.assertEqual(a.pos, (110, 100))
 
 if __name__ == "__main__":
     unittest.main()

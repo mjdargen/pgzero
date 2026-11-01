@@ -622,6 +622,24 @@ For example::
 
 .. image:: _static/actor/alien_center.png
 
+Each of these takes both an x and a y. A single coordinate such as
+``right=WIDTH`` can't place the actor when it is created, so Pygame Zero will
+tell you which pair to use instead. To set just one edge, make the actor first
+and then set it, as in ``alien.right = WIDTH`` above.
+
+``Actor()`` can also :ref:`scale <scaling>`, :ref:`rotate <rotation>`,
+:ref:`flip <flipping>` and :ref:`fade <transparency>` the actor. These are done
+before the actor is placed, so the position you give is where the finished
+actor ends up. For example, this fox is four times bigger and still stands on
+the bottom of the screen::
+
+    fox = Actor('fox', midbottom=(100, HEIGHT), scale=4)
+
+``Actor()`` accepts a position, ``anchor``, ``collision_rect``, ``scale``,
+``angle``, ``opacity``, ``flip_h``, ``flip_v``, ``flip_d`` and ``visible``. If
+you give it anything else, or misspell one of these, it tells you what to
+change.
+
 Changing ``center=(100, 100)`` to ``midbottom=(100, 200)`` gives you:
 
 .. image:: _static/actor/alien_midbottom.png
@@ -712,7 +730,7 @@ Distance, angle and moving towards
 Actors have convenient methods for calculating their distance or angle to other
 Actors or ``(x, y)`` coordinate pairs, and for moving towards them.
 
-.. method:: Actor.move_towards(target, speed)
+.. method:: Actor.move_toward(target, speed)
 
     Move this actor up to ``speed`` pixels in a straight line towards target.
     It stops on the target instead of going past it. Call it from
@@ -720,7 +738,7 @@ Actors or ``(x, y)`` coordinate pairs, and for moving towards them.
     player::
 
         def update():
-            enemy.move_towards(player, 2)
+            enemy.move_toward(player, 2)
 
     A negative ``speed`` moves away from the target instead.
 
@@ -779,6 +797,43 @@ of transparency:
     through a ghost.
 
 
+.. _visible:
+
+Showing and hiding
+''''''''''''''''''
+
+Set ``.visible`` to ``False`` to hide an actor, and back to ``True`` to show it
+again. A hidden actor's ``draw()`` does nothing, so you can keep drawing
+everything in a list without checking each one::
+
+    secret_door = Actor('door', pos=(400, 300), visible=False)
+
+    def on_key_down(key):
+        if key == keys.E:
+            secret_door.visible = True
+
+This makes it easy to make the player flash for a moment after being hit,
+by hiding them for 5 frames out of every 10::
+
+    def update():
+        if player.invincible:
+            player.visible = game.frame_count % 10 < 5
+
+Hiding an actor only stops it being drawn, as ``visible`` does in Godot. It
+still moves, collides, and keeps playing its :ref:`Sprite <sprites>`.
+
+.. tip::
+
+    Because a hidden actor still collides, hiding a collected coin isn't
+    enough: the player would collect it again. Remove it from its list
+    instead::
+
+        for coin in coins[:]:
+            if player.colliderect(coin):
+                coins.remove(coin)
+                game.add_score(1)
+
+
 .. _scaling:
 
 Scaling
@@ -787,12 +842,25 @@ Scaling
 The ``.scale`` attribute of an Actor makes it bigger or smaller. ``1.0`` is the
 image's normal size, ``2.0`` is twice as big and ``0.5`` is half the size::
 
-    boss = Actor('alien', center=(400, 300))
-    boss.scale = 3
+    boss = Actor('alien', center=(400, 300), scale=3)
 
-The actor stays at the same ``pos`` while it changes size. Its ``width``,
-``height`` and collision rectangle change size too. A scale below ``0``
-counts as ``0``; to mirror an actor, use :ref:`flipping <flipping>` instead.
+    def on_key_down():
+        boss.scale = 4  # it can also change during the game
+
+Its ``width``, ``height`` and collision rectangle change size too. A scale
+below ``0`` counts as ``0``; to mirror an actor, use :ref:`flipping <flipping>`
+instead.
+
+When the scale changes during the game, the actor grows or shrinks around its
+:ref:`anchor point <anchor>`, which stays still. The anchor is the center
+unless you choose another one, so by default the actor grows in every
+direction. For a character standing on the ground, put the anchor at its feet
+so that it grows upwards and its feet stay where they are::
+
+    hero = Actor('hero', midbottom=(100, 400), anchor=('center', 'bottom'))
+
+    def on_key_down():
+        hero.scale = 2  # still standing at y=400
 
 
 .. _flipping:
@@ -896,6 +964,19 @@ Then make a Sprite for each row you want to use::
         screen.clear()
         hero.draw()
 
+Frames are read like a book: from the left of the row, across, and on to the
+start of the next row if you ask for more frames than fit in one row. This
+suits sheets where one animation fills several rows, such as an explosion
+drawn as a 5 by 5 grid::
+
+    explosion = Sprite('explosion', frame_width=64, frame_height=64, frames=25, loop=False)
+
+Some sheets leave a gap between frames, or around the edge of the sheet. Give
+these as ``spacing`` and ``margin``, in pixels, the same as in Tiled::
+
+    walking = Sprite('robot', frame_width=32, frame_height=32, row=2,
+                     spacing=2, margin=1)
+
 Instead of a sprite sheet, a Sprite can be made from a list of image names in
 the ``images`` directory::
 
@@ -906,25 +987,53 @@ they don't all move in step::
 
     enemies = [Actor(walking, pos=(x, 300)) for x in range(100, 600, 100)]
 
-An actor can switch between Sprites and still images. Setting ``image`` stops
-the animation::
+An actor can switch between Sprites and still images. Use ``sprite`` for
+Sprites and ``image`` for image names. Whichever you set last is what the actor
+shows::
 
-    hero.image = 'hero_hurt'
+    hero.sprite = walking      # plays the animation; hero.image is now ''
+    hero.image = 'hero_hurt'   # shows the image; hero.sprite is now None
 
-.. class:: Sprite(image_name, frame_width, frame_height, row=0, frames=None, fps=10, transparent_color=None, loop=True)
+    if hero.sprite == walking:
+        ...
+
+Each only takes its own kind of thing: ``hero.image = walking`` gives an error
+telling you to use ``hero.sprite``. The one place you can give either is when
+making the actor, as in ``Actor(walking)`` or ``Actor('hero_hurt')``.
+
+Some animations, such as an attack, should play once and then go back to
+another animation. Make the Sprite with ``loop=False``, then check
+``animation_finished`` in ``update()``::
+
+    attack = Sprite('hero', frame_width=48, frame_height=48, row=2, frames=5,
+                    fps=12, loop=False)
+
+    def on_key_down(key):
+        if key == keys.SPACE:
+            hero.sprite = attack
+
+    def update():
+        if hero.sprite == attack and hero.animation_finished:
+            hero.sprite = standing
+
+.. class:: Sprite(image_name, frame_width, frame_height, row=0, frames=None, fps=10, transparent_color=None, loop=True, spacing=0, margin=0)
 
     One animation.
 
     :param image_name: The name of the sprite sheet in the ``sprites``
                        directory, without the file extension. Or a list of
                        image names in the ``images`` directory, in which case
-                       leave out the next five parameters.
+                       only ``fps`` and ``loop`` are used.
     :param frame_width: The width of each frame, in pixels.
     :param frame_height: The height of each frame, in pixels.
-    :param row: Which row of the sheet to use. The top row is ``0``.
-    :param frames: How many frames to take from the row, starting at the
-                   left edge. Leave it out to use every frame that fits
-                   across the sheet.
+    :param row: Which row of the sheet the animation starts on. The top row
+                is ``0``.
+    :param frames: How many frames the animation has, starting at the left
+                   edge of ``row``. If there are more than fit in the row, it
+                   carries on at the start of the next row. Leave it out to
+                   use every frame in the row, apart from any completely
+                   empty frames at the end of the row. Give ``frames`` if
+                   your animation is meant to end on a blank frame.
     :param fps: How many frames to show each second.
     :param transparent_color: A color to make see-through, for sheets that
                               have a background color instead of
@@ -932,6 +1041,8 @@ the animation::
                               frame's top-left pixel.
     :param loop: If ``False``, the animation stops on its last frame instead
                  of starting again.
+    :param spacing: The gap between frames on the sheet, in pixels.
+    :param margin: The gap around the edge of the sheet, in pixels.
 
 These Actor attributes and methods control the Sprite it is playing:
 
@@ -940,9 +1051,10 @@ These Actor attributes and methods control the Sprite it is playing:
     The Sprite being played, or ``None`` for a still image. Assigning a
     different Sprite switches animation and starts the new one from its first
     frame. Assigning the Sprite that is already playing does nothing, so it is
-    safe to do every frame. Assigning ``None`` stops on the current frame.
+    safe to do every frame, unless that Sprite has finished, in which case it
+    plays again. Assigning ``None`` stops on the current frame.
 
-.. attribute:: Actor.frame_index
+.. attribute:: Actor.frame
 
     The number of the frame showing, starting from ``0``. Assign to it to jump
     to another frame.
@@ -994,9 +1106,17 @@ images together in a ``maps`` directory next to your game::
     maps/terrain.tsx
     maps/terrain.png
 
-Tiled must save tile layers in CSV format, which is its default. Only tile
-layers at the top level of the map are loaded: object layers, image layers and
-layers inside a group are ignored.
+A few settings in Tiled matter:
+
+* The map must be orthogonal (a square grid) and not infinite. These are the
+  defaults when you make a new map. To change an infinite map, open
+  **Map > Map Properties** and untick **Infinite**.
+* Tile layers must be saved in CSV format, which is Tiled's default.
+* Each tile layer needs a different name. Tile layers inside groups are loaded
+  too; object layers and image layers are ignored.
+
+Big maps are fine: tiles that are off the screen are skipped when drawn, and
+every tile of the same kind shares one image.
 
 .. function:: load_tile_map_actors(tmx_name, scale=1)
 

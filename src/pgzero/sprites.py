@@ -49,8 +49,9 @@ class SpriteSheet:
 class Sprite:
     """An animation: its frames, how fast to play them, and whether to loop.
 
-    The frames come from one row of a sprite sheet in the sprites folder, or
-    from a list of image names in the images folder.
+    The frames come from a sprite sheet in the sprites folder, read like a
+    book from the start of a row, or from a list of image names in the images
+    folder.
 
     A Sprite doesn't keep track of which frame is showing; each Actor
     playing it does that. So one Sprite can be shared by many actors.
@@ -66,6 +67,8 @@ class Sprite:
         fps=10,
         transparent_color=None,
         loop=True,
+        spacing=0,
+        margin=0,
     ):
         if fps <= 0:
             raise ValueError(f"fps must be more than 0, not {fps}")
@@ -78,14 +81,17 @@ class Sprite:
         self.fps = fps
         self.transparent_color = transparent_color
         self.loop = loop
+        self.spacing = spacing
+        self.margin = margin
 
         if isinstance(image_name, str):
             self.images = self._cut_row()
         else:
-            if (frame_width, frame_height, frames, transparent_color) != (None,) * 4 or row != 0:
+            sheet_only = (frame_width, frame_height, frames, transparent_color, row, spacing, margin)
+            if sheet_only != (None, None, None, None, 0, 0, 0):
                 raise TypeError(
-                    "frame_width, frame_height, row, frames and "
-                    "transparent_color are only used with a sprite sheet, "
+                    "frame_width, frame_height, row, frames, transparent_color, "
+                    "spacing and margin are only used with a sprite sheet, "
                     "not a list of images."
                 )
             self.images = [loaders.images.load(name) for name in image_name]
@@ -94,42 +100,68 @@ class Sprite:
             raise ValueError("Sprite must contain at least one frame")
 
     def _cut_row(self):
-        """Cut the frames out of one row of the sprite sheet."""
+        """Cut the frames out of the sprite sheet.
+
+        Frames are read like a book: from the left of the row, across, and on
+        to the start of the next row if there are more frames than fit.
+        """
         if self.frame_width is None or self.frame_height is None:
             raise TypeError(
                 f"Sprite({self.image_name!r}) needs frame_width and "
                 "frame_height, the size of one frame in pixels."
             )
+        if self.spacing < 0 or self.margin < 0:
+            raise ValueError("spacing and margin can't be negative")
 
         ss = SpriteSheet(self.image_name)
         sheet_width, sheet_height = ss.sheet.get_size()
+
+        # The margin is the gap around the outside of the sheet, and the
+        # spacing is the gap between frames, as in Tiled.
+        step_x = self.frame_width + self.spacing
+        step_y = self.frame_height + self.spacing
+        columns = (sheet_width - self.margin + self.spacing) // step_x
+        rows = (sheet_height - self.margin + self.spacing) // step_y
+
+        if not 0 <= self.row < rows:
+            raise ValueError(
+                f"Row {self.row} is outside the sprite sheet. With frames "
+                f"{self.frame_width}x{self.frame_height}, the sheet has rows "
+                f"0 to {rows - 1}."
+            )
+
         frame_count = self.frames
         if frame_count is None:
-            # Use every frame that fits across the sheet
-            frame_count = sheet_width // self.frame_width
-
-        if self.frame_height * (self.row + 1) > sheet_height:
+            # The rest of the row
+            frame_count = columns
+        available = (rows - self.row) * columns
+        if frame_count > available:
             raise ValueError(
-                f"Row {self.row} is outside the sprite sheet. "
-                f"The sheet is {sheet_width}x{sheet_height}, "
-                f"but row {self.row} with frame height {self.frame_height} "
-                f"would end at y={self.frame_height * (self.row + 1)}."
-            )
-        if self.frame_width * frame_count > sheet_width:
-            raise ValueError(
-                f"The requested frames go past the edge of the sprite sheet. "
-                f"The sheet is {sheet_width} pixels wide, but "
-                f"{frame_count} frames with width {self.frame_width} need "
-                f"{self.frame_width * frame_count} pixels."
+                f"The sheet has {available} frames from the start of row "
+                f"{self.row} to the end, but frames={frame_count} asks for more."
             )
 
-        first_rect = (
-            0,
-            self.frame_height * self.row,
-            self.frame_width,
-            self.frame_height,
-        )
-        return ss.load_strip(first_rect, frame_count, self.transparent_color)
+        rects = []
+        for i in range(frame_count):
+            row = self.row + i // columns
+            column = i % columns
+            x = self.margin + column * step_x
+            y = self.margin + row * step_y
+            rects.append((x, y, self.frame_width, self.frame_height))
+        images = ss.images_at(rects, self.transparent_color)
+
+        if self.frames is None:
+            # Rows of different-length animations are often padded with empty
+            # frames at the end. Leave those out, but keep any blank frames in
+            # the middle of the animation.
+            while images and images[-1].get_bounding_rect().width == 0:
+                images.pop()
+            if not images:
+                raise ValueError(
+                    f"Row {self.row} of the sprite sheet {self.image_name!r} has no "
+                    "visible frames."
+                )
+        return images
 
     def copy(self):
         # Older versions needed a copy of a Sprite for each actor. Sprites can

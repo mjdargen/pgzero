@@ -13,6 +13,7 @@ Fixtures live in ``maps/``:
 
 """
 import unittest
+from unittest import mock
 import xml.etree.ElementTree as ET
 
 import pygame
@@ -505,6 +506,74 @@ class MapLoaderTest(TilemapTestBase):
             "level.tmx",
         )[1]
         self.assertEqual(ts["tile_count"], 2)
+
+
+TILESET_XML = """
+ <tileset firstgid="1" tilewidth="8" tileheight="8"
+          spacing="2" margin="1" tilecount="6" columns="3">
+  <image source="tiles.png"/>
+ </tileset>
+"""
+
+
+class MapSettingsTest(TilemapTestBase):
+    """Map settings that aren't supported fail clearly instead of loading wrongly."""
+
+    def load(self, map_attrs, body):
+        xml = f'<map {map_attrs} tilewidth="8" tileheight="8">{TILESET_XML}{body}</map>'
+        with mock.patch("pgzero.tilemaps._load_xml_from_maps", return_value=ET.fromstring(xml)):
+            return load_tile_map_actors("test")
+
+    def layer(self, name, csv="1,2"):
+        return f'<layer name="{name}" width="2" height="1"><data encoding="csv">{csv}</data></layer>'
+
+    def test_infinite_map(self):
+        with self.assertRaisesRegex(ValueError, "untick Infinite"):
+            self.load('orientation="orthogonal" infinite="1"', self.layer("ground"))
+
+    def test_isometric_map(self):
+        with self.assertRaisesRegex(ValueError, "isometric map"):
+            self.load('orientation="isometric"', self.layer("ground"))
+
+    def test_layers_inside_groups(self):
+        body = (
+            self.layer("sky")
+            + '<group name="level">' + self.layer("ground")
+            + '<group name="inner">' + self.layer("coins", "0,3") + "</group></group>"
+        )
+        layers = self.load('orientation="orthogonal" infinite="0"', body)
+        self.assertEqual(list(layers), ["sky", "ground", "coins"])
+        self.assertEqual([t.tile_gid for t in layers["coins"]], [3])
+
+    def test_duplicate_layer_names(self):
+        body = self.layer("ground") + '<group name="g">' + self.layer("ground") + "</group>"
+        with self.assertRaisesRegex(ValueError, "more than one layer named 'ground'"):
+            self.load('orientation="orthogonal"', body)
+
+
+class SharedTileImageTest(TilemapTestBase):
+    """Tiles of the same kind share one image."""
+
+    def test_same_kind_of_tile_shares_an_image(self):
+        tile = load_tile_map_actors("level")["ground"][0]
+        self.assertIs(tile.copy(map_col=3)._orig_surf, tile._orig_surf)
+
+    def test_scaled_tiles_share_a_scaled_image(self):
+        ground = load_tile_map_actors("level", scale=3)["ground"]
+        tile = ground[0]
+        self.assertEqual(tile.scale, 3)
+        self.assertEqual(tile._orig_surf.get_size(), (48, 48))
+        self.assertIs(tile.copy(map_col=3)._orig_surf, tile._orig_surf)
+        # The shared image is already the right size, so it isn't scaled again
+        self.assertIs(tile._build_transformed_surf(), tile._orig_surf)
+
+    def test_changing_a_tiles_scale(self):
+        tile = load_tile_map_actors("level")["ground"][0]
+        pos = tile.pos
+        tile.scale = 2
+        self.assertEqual(tile.scale, 2)
+        self.assertEqual((tile.width, tile.height), (32, 32))
+        self.assertEqual(tile.pos, pos)
 
 
 if __name__ == "__main__":

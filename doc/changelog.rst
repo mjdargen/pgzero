@@ -8,12 +8,28 @@ Pygame Zero Plus
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 * Enhanced Actors with scaling, flipping, opacity, and custom collisions.
-* Added ``actor.move_towards(target, speed)``, e.g. to make an enemy chase the
+* Added ``actor.move_toward(target, speed)``, e.g. to make an enemy chase the
   player.
+* Added ``actor.visible``. Hidden actors aren't drawn but still move and
+  collide, like ``visible`` in Godot.
+* ``Actor()`` accepts ``scale``, ``angle``, ``opacity``, ``flip_h``, ``flip_v``
+  and ``flip_d``, applied before positioning, so the position given is where
+  the finished actor ends up, e.g.
+  ``Actor('fox', midbottom=(100, HEIGHT), scale=4)``.
+* ``Actor()`` no longer silently ignores keyword arguments it doesn't use. It
+  says what to write instead: a position pair for ``right=0``, ``pos`` for
+  ``position``, or the correct spelling of a typo.
 * Added Sprites: animations from a sprite sheet or a list of images, which
-  any Actor can play, e.g. ``Actor(fox_walk)``. Many actors can share one
-  Sprite, and animations hold still while the game is paused.
+  any Actor can play with ``actor.sprite = fox_walk``. Many actors can share
+  one Sprite, and animations hold still while the game is paused. A Sprite
+  with ``loop=False`` plays once, and plays again if it is set again after
+  finishing. Sprite sheet animations can carry on over several rows, and
+  sheets with gaps between frames are supported with ``spacing`` and
+  ``margin``. Leaving out ``frames`` uses the whole row, apart from empty
+  frames at the end.
 * Added support for tilemaps created with Tiled Map Editor.
+* Actors that are completely off the screen are skipped when drawn, so big tile
+  maps draw much faster.
 * Added game management and restart functionality.
 * Added a ``start()`` hook, called when the game starts and on every restart.
 * ``screen.draw.rect()`` and ``screen.draw.filled_rect()`` also accept a

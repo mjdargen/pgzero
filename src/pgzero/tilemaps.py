@@ -11,14 +11,23 @@ FLIP_D = 0x20000000
 GID_MASK = 0x0FFFFFFF
 
 
-def _get_tile_surface(tileset, tile_col, tile_row, map_tile_width, map_tile_height):
-    tx = tileset["margin"] + tile_col * (tileset["tile_width"] + tileset["spacing"])
-    ty = tileset["margin"] + tile_row * (tileset["tile_height"] + tileset["spacing"])
+def _get_tile_surface(tileset, tile_col, tile_row, width, height):
+    """Return the tile's image at the given size.
 
-    tile_rect = (tx, ty, tileset["tile_width"], tileset["tile_height"])
-    tile_surface = tileset["image"].subsurface(tile_rect)
+    Every tile of the same kind and size shares one image, so that a big map
+    doesn't keep thousands of copies of the same grass tile.
+    """
+    surfaces = tileset.setdefault("surfaces", {})
+    key = (tile_col, tile_row, width, height)
+    if key not in surfaces:
+        tx = tileset["margin"] + tile_col * (tileset["tile_width"] + tileset["spacing"])
+        ty = tileset["margin"] + tile_row * (tileset["tile_height"] + tileset["spacing"])
 
-    return pygame.transform.scale(tile_surface, (map_tile_width, map_tile_height))
+        tile_rect = (tx, ty, tileset["tile_width"], tileset["tile_height"])
+        tile_surface = tileset["image"].subsurface(tile_rect)
+
+        surfaces[key] = pygame.transform.scale(tile_surface, (width, height))
+    return surfaces[key]
 
 
 class Tile(Actor):
@@ -41,15 +50,31 @@ class Tile(Actor):
         self.tileset_firstgid = tileset_firstgid
         self._map_tile_width = map_tile_width
         self._map_tile_height = map_tile_height
+        self._map_scale = max(0.0, scale)
 
         super().__init__(self._tile_surface(tile_col, tile_row))
 
-        self.scale = scale
-        self.flip_h = flip_h
-        self.flip_v = flip_v
-        self.flip_d = flip_d
+        # Setting a flip redoes the tile's position and image, so only set the
+        # flips that are used; most tiles in a map have none.
+        if flip_h:
+            self.flip_h = flip_h
+        if flip_v:
+            self.flip_v = flip_v
+        if flip_d:
+            self.flip_d = flip_d
 
         self.set_map_position(map_col, map_row)
+
+    @property
+    def scale(self):
+        return self._map_scale
+
+    @scale.setter
+    def scale(self, scale):
+        # Rather than scaling its own copy of its image like other Actors, a
+        # tile uses the shared image for its kind of tile at the new size.
+        self._map_scale = max(0.0, scale)
+        self._set_image(self._tile_surface(self.tile_col, self.tile_row))
 
     def set_tile_image(self, tile_col, tile_row):
         self.image = self._tile_surface(tile_col, tile_row)
@@ -80,8 +105,8 @@ class Tile(Actor):
             self._tileset,
             tile_col,
             tile_row,
-            self._map_tile_width,
-            self._map_tile_height,
+            max(1, round(self._map_tile_width * self._map_scale)),
+            max(1, round(self._map_tile_height * self._map_scale)),
         )
 
     def set_map_position(self, map_col, map_row):
@@ -229,6 +254,15 @@ def _load_tilesets(root, tmx_name):
     return tilesets
 
 
+def _tile_layers(element):
+    """Yield the tile layers in element, including those inside groups."""
+    for child in element:
+        if child.tag == "layer":
+            yield child
+        elif child.tag == "group":
+            yield from _tile_layers(child)
+
+
 def load_tile_map_actors(tmx_name, scale=1):
     """
     Load a Tiled TMX map into a dict of:
@@ -238,6 +272,18 @@ def load_tile_map_actors(tmx_name, scale=1):
     """
     root = _load_xml_from_maps(tmx_name)
 
+    orientation = root.attrib.get("orientation", "orthogonal")
+    if orientation != "orthogonal":
+        raise ValueError(
+            f"{tmx_name!r} is an {orientation} map. Only orthogonal maps, "
+            "where the tiles are laid out in a square grid, are supported."
+        )
+    if root.attrib.get("infinite") == "1":
+        raise ValueError(
+            f"{tmx_name!r} is an infinite map, which isn't supported. In Tiled, "
+            "open Map > Map Properties, untick Infinite, and save the map again."
+        )
+
     map_tile_width = int(root.attrib["tilewidth"])
     map_tile_height = int(root.attrib["tileheight"])
 
@@ -245,8 +291,13 @@ def load_tile_map_actors(tmx_name, scale=1):
 
     layers_dict = {}
 
-    for layer in root.findall("layer"):
+    for layer in _tile_layers(root):
         name = layer.attrib["name"]
+        if name in layers_dict:
+            raise ValueError(
+                f"{tmx_name!r} has more than one layer named {name!r}. "
+                "Give each layer a different name in Tiled."
+            )
         width = int(layer.attrib["width"])
         height = int(layer.attrib["height"])
         data = layer.find("data")
