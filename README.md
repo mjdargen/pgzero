@@ -150,6 +150,41 @@ Then open `doc/_build/html/index.html` in your browser.
 
 GitHub Actions runs pre-commit, the tests on every supported Python version, the documentation build, and a package build on each pull request and push to `main`. Results appear on the pull request and on the [Actions page](https://github.com/mjdargen/pgzero/actions).
 
+## Publishing a Release
+
+Pushing a version tag triggers the release workflow, which tests, builds, publishes to PyPI, and creates a GitHub Release.
+
+**1. Update the version** in `pyproject.toml`:
+
+```toml
+version = "0.1.0a2"
+```
+
+**2. Commit and push changes:**
+
+```bash
+git switch main
+git status
+git add .
+git commit -m "Prepare v0.1.0a2"
+git push origin main
+```
+
+**3. Confirm Code Checks passes** on the [GitHub Actions page](https://github.com/mjdargen/pgzero/actions).
+
+**4. Create and push the release tag:**
+
+```bash
+git tag -a v0.1.0a2 -m "Release v0.1.0a2"
+git push origin v0.1.0a2
+```
+
+**5. Verify publication:**
+
+- [GitHub Actions](https://github.com/mjdargen/pgzero/actions)
+- [GitHub Releases](https://github.com/mjdargen/pgzero/releases)
+- [PyPI — pgzero-plus](https://pypi.org/project/pgzero-plus/)
+
 ## Credits & License
 
 This project is an independent fork of [Pygame Zero](https://github.com/lordmauve/pgzero), originally developed by Daniel Pope and contributors.

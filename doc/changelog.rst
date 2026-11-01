@@ -4,7 +4,7 @@ Changelog
 Pygame Zero Plus
 ----------------
 
-0.0.1 - Initial release
+0.1.0 - Initial release
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 * Enhanced Actors with scaling, flipping, opacity, and custom collisions.
