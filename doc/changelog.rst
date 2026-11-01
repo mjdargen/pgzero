@@ -38,6 +38,13 @@ Pygame Zero Plus
   ``music.is_paused()`` was added.
 * Added ``clock.clear()`` to unschedule everything.
 * Games still run, with silent sound, on computers without a sound device.
+* Games no longer print "no fast renderer available" on virtual desktops
+  without graphics acceleration.
+* Running games one after another in the same Python process (e.g. in Spyder)
+  no longer crashes when they play sounds. ``sounds.unload()`` and
+  ``unload_all()`` now really reload the sound next time.
+* Removed an old macOS workaround that restarted ``pgzrun`` with a different
+  Python when run from a virtual environment. pygame 2 doesn't need it.
 * Uppercase keyboard names such as ``keyboard.LEFT`` no longer print
   deprecation warnings.
 * Uses pygame-ce on Python 3.10 and newer, and supports Python 3.14 and 3.15.

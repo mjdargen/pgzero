@@ -182,3 +182,48 @@ class IDEModeTest(unittest.TestCase):
         with redirect_stdout(out), self.assertRaises(SystemExit):
             load_and_run(str(self.game_dir / 'ide_mode.py'))
         self.assertIn('ide_mode ok', out.getvalue())
+        # Once the game has ended, import pgzrun works again
+        self.assertFalse(getattr(sys, '_pgzrun', False))
+
+
+SOUND_GAME = """import sys
+sounds.powerup.play()
+tone.create('A4', 0.1).play()
+print('played')
+clock.schedule_unique(sys.exit, 0.1)
+"""
+
+RUN_TWICE = """from pgzero.runner import load_and_run
+for run in (1, 2):
+    try:
+        load_and_run('game.py')
+    except SystemExit:
+        print('ended', run)
+"""
+
+
+class RepeatedRunTest(unittest.TestCase):
+    """Games can run one after another in the same Python process."""
+
+    def test_game_with_sounds_runs_twice(self):
+        # In a separate process: before this was fixed, the second run
+        # crashed Python by playing a sound left over from the first.
+        tmp = Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, str(tmp))
+        (tmp / 'sounds').mkdir()
+        shutil.copy(str(test_dir / 'sounds' / 'powerup.wav'), str(tmp / 'sounds'))
+        (tmp / 'game.py').write_text(SOUND_GAME)
+        env = dict(os.environ, SDL_VIDEODRIVER='dummy', SDL_AUDIODRIVER='dummy')
+        result = subprocess.run(
+            [sys.executable, '-c', RUN_TWICE],
+            cwd=str(tmp),
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            timeout=60,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.split(), ['played', 'ended', '1', 'played', 'ended', '2'])
+        # Starting a game doesn't print pygame-ce's renderer warning
+        self.assertNotIn('no fast renderer', result.stderr)

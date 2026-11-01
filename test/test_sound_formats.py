@@ -10,6 +10,9 @@ class SoundFormatsTest(TestCase):
     @classmethod
     def setUpClass(self):
         set_root(__file__)
+        # A game run by an earlier test shuts audio down when it ends
+        if not pygame.mixer.get_init():
+            pygame.mixer.init()
 
     def assert_loadable(self, name):
         s = sounds.load(name)
@@ -59,3 +62,14 @@ class SoundFormatsTest(TestCase):
     def test_load_vorbis2(self):
         """Load OGG Vorbis with .oga extension."""
         self.assert_loadable('vorbis2')
+
+    def test_unload_forgets_the_sound(self):
+        """sounds.powerup loads the file again after unload()."""
+        first = sounds.powerup
+        sounds.unload('powerup')
+        self.assertIsNot(sounds.powerup, first)
+
+    def test_unload_all_forgets_every_sound(self):
+        first = sounds.powerup
+        sounds.unload_all()
+        self.assertIsNot(sounds.powerup, first)

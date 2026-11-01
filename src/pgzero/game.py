@@ -2,6 +2,7 @@ import sys
 import operator
 import time
 import types
+import warnings
 from time import perf_counter, sleep
 
 import pygame
@@ -9,6 +10,7 @@ import pgzero.clock
 import pgzero.keyboard
 import pgzero.screen
 import pgzero.loaders
+import pgzero.tone
 import builtins
 
 from . import constants
@@ -247,7 +249,12 @@ class PGZeroGame:
         w = getattr(mod, "WIDTH", 800)
         h = getattr(mod, "HEIGHT", 600)
         if w != self.width or h != self.height:
-            self.screen = pygame.display.set_mode((w, h), DISPLAY_FLAGS, vsync=1)
+            with warnings.catch_warnings():
+                # pygame-ce warns this when vsync isn't available, e.g. on a
+                # virtual desktop without graphics acceleration. The game
+                # still runs normally, so don't show it to students.
+                warnings.filterwarnings("ignore", message="no fast renderer available")
+                self.screen = pygame.display.set_mode((w, h), DISPLAY_FLAGS, vsync=1)
             pgzero.screen.screen_instance._set_surface(self.screen)
 
             # Set the global screen that actors blit to
@@ -404,6 +411,10 @@ class PGZeroGame:
         finally:
             pygame.display.quit()
             pygame.mixer.quit()
+            # Sounds belong to the audio system that has just shut down, and
+            # playing one in a later game in this process would crash Python.
+            pgzero.loaders.sounds.unload_all()
+            pgzero.tone._create.cache_clear()
 
     def inject_global_handlers(self):
         """Inject handlers provide by the Pygame Zero system.

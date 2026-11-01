@@ -30,54 +30,7 @@ def init_pygame():
 init_pygame()
 
 
-def _check_python_ok_for_pygame():
-    """If we're on a Mac, is this a full Framework python?
-
-    There is a problem with PyGame on Macs running in a virtual env.
-    If the Python used is from the venv, it will not allow full window and
-    keyboard interaction. Instead, we need the original framework Python
-    to get PyGame working properly.
-
-    The problem doesn't occur on Linux and Windows.
-    """
-    if sys.platform == "darwin":  # This is a Mac
-        return "Library/Frameworks" in sys.executable
-    else:
-        return True
-
-
-def _substitute_full_framework_python():
-    """Need to change the OS/X Python executable to the full Mac version,
-    while maintaining the virtualenv environment, so things still run
-    in an encapsulated way.
-
-    We do this by extract the paths that virtualenv has added to the system
-    path, and prefixing them to the current PYTHONPATH.
-
-    Then we use os.execv() to start a replacement process that uses the
-    same environment as the previous one.
-    """
-    PYVER = "{}.{}".format(*sys.version_info[:2])
-    base_fw = "/Library/Frameworks/Python.framework/Versions/"
-    framework_python = base_fw + "{pv}/bin/python{pv}".format(pv=PYVER)
-    venv_base = os.environ.get("VIRTUAL_ENV")
-    if not venv_base or not os.path.exists(framework_python):
-        # Do nothing if virtual env hasn't been set up or if we can't
-        # find the framework Python interpreter
-        return
-    venv_paths = [p for p in sys.path if p.startswith(venv_base)]
-    # Need to allow for PYTHONPATH not already existing in environment
-    os.environ["PYTHONPATH"] = ":".join(venv_paths + [os.environ.get("PYTHONPATH", "")]).rstrip(":")
-    # Pass command line args to the new process
-    os.execv(framework_python, ["python", "-m", "pgzero"] + sys.argv[1:])
-
-
 def main():
-
-    # Pygame won't run from a normal virtualenv copy of Python on a Mac
-    if not _check_python_ok_for_pygame():
-        _substitute_full_framework_python()
-
     parser = ArgumentParser()
     parser.add_argument(
         "--fps",
@@ -167,10 +120,12 @@ You can also run a specific file with:
     try:
         run_mod(mod, fps=fps)
     finally:
-        # Clean some of the state we created, useful in testing
+        # Clean some of the state we created, so that another game can run
+        # in the same process (e.g. in the tests)
         pygame.display.quit()
         clock.clock.clear()
         del sys.modules[name]
+        sys._pgzrun = False
 
 
 def prepare_mod(mod):
@@ -189,6 +144,11 @@ def prepare_mod(mod):
     """
     storage.storage._set_filename_from_path(mod.__file__)
     loaders.set_root(mod.__file__)
+
+    # A game that ran earlier in this process (e.g. in Spyder, or the tests)
+    # shut audio down when it ended, so start it again.
+    if not pygame.mixer.get_init():
+        init_pygame()
 
     open_loading_window()
 
@@ -244,6 +204,5 @@ def run_mod(mod, **kwargs):
     # than reusing the hidden loading window from prepare_mod().
     pygame.display.quit()
     pygame.display.init()
-    PGZeroGame.show_default_icon()
 
     PGZeroGame(mod, **kwargs).run()

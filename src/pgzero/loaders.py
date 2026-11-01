@@ -146,9 +146,13 @@ class ResourceLoader:
         key = self.cache_key(name, args, kwargs)
         if key in self._cache:
             del self._cache[key]
+        # __getattr__ also keeps it as an attribute, e.g. sounds.explosion
+        self.__dict__.pop(name, None)
 
     def unload_all(self):
         self._cache.clear()
+        for name in [n for n in self.__dict__ if not n.startswith("_")]:
+            del self.__dict__[name]
 
     def __getattr__(self, name):
         p = os.path.join(self._root(), name)
