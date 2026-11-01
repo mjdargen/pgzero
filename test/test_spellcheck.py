@@ -143,6 +143,12 @@ class SpellCheckerTest(TestCase):
         })
         self.assert_has_warning('WIDHT', 'WIDTH')
 
+    def test_misspelled_fullscreen(self):
+        self.spellcheck({
+            'FULSCREEN': True,
+        })
+        self.assert_has_warning('FULSCREEN', 'FULLSCREEN')
+
     def test_misspelled_width_lowercase(self):
         self.spellcheck({
             'widht': 640,

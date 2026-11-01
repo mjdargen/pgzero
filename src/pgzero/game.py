@@ -228,6 +228,7 @@ class PGZeroGame:
         self.height = None
         self.title = None
         self.icon = None
+        self.fullscreen = None
         self.fps = fps
         self.keyboard = pgzero.keyboard.keyboard
         self.handlers = {}
@@ -242,6 +243,16 @@ class PGZeroGame:
         changed = False
         mod = self.mod
 
+        fullscreen = bool(getattr(mod, "FULLSCREEN", False))
+        if self.screen is not None and fullscreen != self.fullscreen:
+            # Classic pygame can't switch a window into or out of scaled
+            # mode, so start a new one. Images already loaded keep working.
+            pygame.display.quit()
+            pygame.display.init()
+            self.width = self.height = self.icon = self.title = None
+            # Keys held during the switch may never report being released
+            self.keyboard._pressed.clear()
+
         icon = getattr(self.mod, "ICON", DEFAULTICON)
         if icon and icon != self.icon:
             self.show_icon()
@@ -249,18 +260,25 @@ class PGZeroGame:
         w = getattr(mod, "WIDTH", 800)
         h = getattr(mod, "HEIGHT", 600)
         if w != self.width or h != self.height:
+            flags = DISPLAY_FLAGS
+            if fullscreen:
+                # The game still draws at WIDTH x HEIGHT, and SDL scales that
+                # up to fill the screen, keeping its shape. Mouse positions
+                # are scaled back, so nothing else needs to change.
+                flags |= pygame.SCALED | pygame.FULLSCREEN
             with warnings.catch_warnings():
                 # pygame-ce warns this when vsync isn't available, e.g. on a
                 # virtual desktop without graphics acceleration. The game
                 # still runs normally, so don't show it to students.
                 warnings.filterwarnings("ignore", message="no fast renderer available")
-                self.screen = pygame.display.set_mode((w, h), DISPLAY_FLAGS, vsync=1)
+                self.screen = pygame.display.set_mode((w, h), flags, vsync=1)
             pgzero.screen.screen_instance._set_surface(self.screen)
 
             # Set the global screen that actors blit to
             screen = self.screen
             self.width = w
             self.height = h
+            self.fullscreen = fullscreen
 
             # Dimensions changed, request a redraw
             changed = True
@@ -430,6 +448,10 @@ class PGZeroGame:
         def key_down(event):
             if event.key == pygame.K_q and event.mod & (pygame.KMOD_CTRL | pygame.KMOD_META):
                 sys.exit(0)
+            if event.key == pygame.K_F11:
+                # Switch between fullscreen and a window. reinit_screen()
+                # applies it at the end of this frame.
+                self.mod.FULLSCREEN = not getattr(self.mod, "FULLSCREEN", False)
             self.keyboard._press(event.key)
             if user_key_down:
                 return user_key_down(event)

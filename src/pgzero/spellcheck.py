@@ -85,7 +85,7 @@ HOOKS = ["draw", "update", "start"]
 
 
 # The list of magic module-level constants
-CONSTS = ["TITLE", "WIDTH", "HEIGHT", "ICON"]
+CONSTS = ["TITLE", "WIDTH", "HEIGHT", "ICON", "FULLSCREEN"]
 
 # Available parameters for each hook
 # NB. update() takes one or zero positional parameter but we don't constrain

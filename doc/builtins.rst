@@ -22,6 +22,9 @@ Set these variables at the top of your game to set up its window:
     The name of an image in the ``images`` directory to show as the window's
     icon. A small square image, such as 32 by 32 pixels, works best.
 
+``FULLSCREEN``
+    Set to ``True`` to fill the whole screen. The default is ``False``.
+
 For example::
 
     WIDTH = 640
@@ -32,6 +35,39 @@ For example::
 These are read again on every frame, so changing them while the game is
 running, such as ``TITLE = 'Paused'``, changes the window. Use ``global`` to
 change them from inside a function.
+
+.. _fullscreen:
+
+Fullscreen
+''''''''''
+
+With ``FULLSCREEN = True``, the game is scaled up to fill the screen. It keeps
+its shape, with black bars at the sides or at the top and bottom if the screen
+is a different shape. Your game doesn't change at all: it is still ``WIDTH``
+by ``HEIGHT`` pixels, so positions, speeds and collisions work exactly as
+before, and mouse positions are in game pixels too.
+
+Players can press **F11** to switch between fullscreen and a window, and
+**Ctrl+Q** (**⌘+Q** on a Mac) to quit. A fullscreen game has no close button,
+so it's worth telling players about these.
+
+The game is scaled without smoothing, so pixel art stays crisp. If the game
+fits into the screen a whole number of times, every pixel is the same size.
+Otherwise, some pixels are drawn one screen pixel bigger than others, which
+can make fine pixel art shimmer slightly as it moves. For pixel art games,
+choose a size that divides the screen evenly. For a 1920 by 1080 screen:
+
+======================  =======================
+``WIDTH`` x ``HEIGHT``  Each game pixel becomes
+======================  =======================
+960 x 540               2 x 2 screen pixels
+640 x 360               3 x 3 screen pixels
+480 x 270               4 x 4 screen pixels
+320 x 180               6 x 6 screen pixels
+======================  =======================
+
+Make the game no bigger than the screen it will run on. If it has to be shrunk
+to fit, thin lines and small text can flicker or disappear.
 
 
 .. _screen:

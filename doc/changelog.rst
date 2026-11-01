@@ -27,6 +27,9 @@ Pygame Zero Plus
   sheets with gaps between frames are supported with ``spacing`` and
   ``margin``. Leaving out ``frames`` uses the whole row, apart from empty
   frames at the end.
+* Added ``FULLSCREEN = True``, which scales the game to fill the screen while
+  keeping its shape and its ``WIDTH`` x ``HEIGHT`` coordinates. F11 switches
+  between fullscreen and a window.
 * Added support for tilemaps created with Tiled Map Editor.
 * Actors that are completely off the screen are skipped when drawn, so big tile
   maps draw much faster.

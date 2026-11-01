@@ -165,6 +165,40 @@ os.write(2, b"after")
         self.assertIn('after', result.stderr)
 
 
+class FullscreenTest(unittest.TestCase):
+    """FULLSCREEN = True scales the game to fill the screen, and F11 switches."""
+
+    def test_fullscreen_and_f11(self):
+        # In a separate process with the dummy video driver, so the test never
+        # takes over a real screen. The dummy screen is 1024x768.
+        tmp = Path(tempfile.mkdtemp()).resolve()
+        self.addCleanup(shutil.rmtree, str(tmp))
+        (tmp / 'images').mkdir()
+        shutil.copy(str(test_dir / 'images' / 'alien.png'), str(tmp / 'images'))
+        shutil.copy(str(game_tests / 'fullscreen.py'), str(tmp))
+        env = dict(os.environ, SDL_VIDEODRIVER='dummy', SDL_AUDIODRIVER='dummy')
+        result = subprocess.run(
+            [sys.executable, 'fullscreen.py'],
+            cwd=str(tmp),
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            timeout=60,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), [
+            # The window fills the screen, but the game still draws at 400x300
+            'True (1024, 768) (400, 300) True',
+            # F11: a normal window
+            'False (400, 300) (400, 300) True',
+            # F11 again: fullscreen, still drawing
+            'True (1024, 768) (400, 300) True',
+            # Keys held while switching don't stay stuck down
+            'right held: False',
+        ])
+
+
 class IDEModeTest(unittest.TestCase):
     """Games can be started with ``import pgzrun`` and ``pgzrun.go()``.
 
