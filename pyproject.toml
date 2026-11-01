@@ -1,6 +1,6 @@
 [project]
 name = "pgzero-plus"
-version = "0.1.0a1"
+version = "0.1.0a2"
 description = "An enhanced fork of Pygame Zero with additional features for teaching and developing 2D games"
 readme = "README.md"
 license = "LGPL-3.0-or-later"
