@@ -1,9 +1,9 @@
 """Tests for sprite sheets, Sprites, and Actors playing Sprites.
 
 The fixture ``sprites/walk.png`` is a 64x32 sheet of 16x16 frames laid out
-in 4 columns and 2 rows. Each frame is a solid colour
+in 4 columns and 2 rows. Each frame is a solid color
 ``(col * 60, 100 + row * 100, 50)`` except for pixel (0, 0), which is magenta
-so that colour-key handling can be tested.
+so that color-key handling can be tested.
 
 ``sprites/spaced.png`` (a copy of ``maps/tiles.png``) has 3x2 frames of 8x8
 pixels with a 1 pixel margin and 2 pixels of spacing. Each frame is filled
@@ -11,7 +11,7 @@ with ``(col * 100, row * 200, 77)``.
 
 ``sprites/padded.png`` has 4x2 frames of 8x8 pixels, some left empty: row 0 is
 frame, empty, frame, empty and row 1 is frame, frame, empty, empty. Filled
-frames are ``frame_colour(col, row)``.
+frames are ``frame_color(col, row)``.
 
 """
 import unittest
@@ -29,12 +29,12 @@ SCREEN_SIZE = {"get_size.return_value": (800, 600)}
 MAGENTA = (255, 0, 255, 255)
 
 
-def frame_colour(col, row):
+def frame_color(col, row):
     return (col * 60, 100 + row * 100, 50, 255)
 
 
-def drawn_colour(image, pos):
-    """The colour a pixel of image comes out as when drawn on black."""
+def drawn_color(image, pos):
+    """The color a pixel of image comes out as when drawn on black."""
     surf = pygame.Surface(image.get_size())
     surf.blit(image, (0, 0))
     return tuple(surf.get_at(pos))[:3]
@@ -96,35 +96,35 @@ class SpriteSheetTest(SpriteTestBase):
         sheet = SpriteSheet("walk")
         img = sheet.image_at((16, 16, 16, 16))
         self.assertEqual(img.get_size(), (16, 16))
-        self.assertEqual(tuple(img.get_at((5, 5))), frame_colour(1, 1))
+        self.assertEqual(tuple(img.get_at((5, 5))), frame_color(1, 1))
 
     def test_image_at_no_color_key(self):
         sheet = SpriteSheet("walk")
         img = sheet.image_at((0, 0, 16, 16))
-        self.assertEqual(drawn_colour(img, (0, 0)), MAGENTA[:3])
+        self.assertEqual(drawn_color(img, (0, 0)), MAGENTA[:3])
 
     def test_image_at_color_key_is_transparent(self):
-        """Pixels of the color key's colour are not drawn."""
+        """Pixels of the color key's color are not drawn."""
         sheet = SpriteSheet("walk")
         for color_key in [MAGENTA[:3], 'magenta']:
             with self.subTest(color_key=color_key):
                 img = sheet.image_at((0, 0, 16, 16), color_key=color_key)
-                self.assertEqual(drawn_colour(img, (0, 0)), (0, 0, 0))
-                self.assertEqual(drawn_colour(img, (5, 5)), frame_colour(0, 0)[:3])
+                self.assertEqual(drawn_color(img, (0, 0)), (0, 0, 0))
+                self.assertEqual(drawn_color(img, (5, 5)), frame_color(0, 0)[:3])
 
     def test_image_at_color_key_minus_one_uses_top_left_pixel(self):
-        """A color_key of -1 means 'use the colour of pixel (0, 0)'."""
+        """A color_key of -1 means 'use the color of pixel (0, 0)'."""
         sheet = SpriteSheet("walk")
         img = sheet.image_at((0, 0, 16, 16), color_key=-1)
-        self.assertEqual(drawn_colour(img, (0, 0)), (0, 0, 0))
-        self.assertEqual(drawn_colour(img, (5, 5)), frame_colour(0, 0)[:3])
+        self.assertEqual(drawn_color(img, (0, 0)), (0, 0, 0))
+        self.assertEqual(drawn_color(img, (5, 5)), frame_color(0, 0)[:3])
 
     def test_images_at(self):
         sheet = SpriteSheet("walk")
         imgs = sheet.images_at([(0, 0, 16, 16), (48, 16, 16, 16)])
         self.assertEqual(len(imgs), 2)
-        self.assertEqual(tuple(imgs[0].get_at((5, 5))), frame_colour(0, 0))
-        self.assertEqual(tuple(imgs[1].get_at((5, 5))), frame_colour(3, 1))
+        self.assertEqual(tuple(imgs[0].get_at((5, 5))), frame_color(0, 0))
+        self.assertEqual(tuple(imgs[1].get_at((5, 5))), frame_color(3, 1))
 
     def test_load_strip(self):
         """load_strip() returns consecutive frames moving to the right."""
@@ -132,7 +132,7 @@ class SpriteSheetTest(SpriteTestBase):
         imgs = sheet.load_strip((0, 16, 16, 16), 4)
         self.assertEqual(
             [tuple(i.get_at((5, 5))) for i in imgs],
-            [frame_colour(c, 1) for c in range(4)],
+            [frame_color(c, 1) for c in range(4)],
         )
 
     def test_missing_sheet(self):
@@ -146,20 +146,20 @@ class SpriteTest(SpriteTestBase):
         self.assertEqual(len(s.images), 3)
         self.assertEqual(
             [tuple(i.get_at((5, 5))) for i in s.images],
-            [frame_colour(c, 1) for c in range(3)],
+            [frame_color(c, 1) for c in range(3)],
         )
 
     def test_defaults_to_every_frame_in_the_top_row(self):
         s = Sprite("walk", 16, 16)
         self.assertEqual(
             [tuple(i.get_at((5, 5))) for i in s.images],
-            [frame_colour(c, 0) for c in range(4)],
+            [frame_color(c, 0) for c in range(4)],
         )
 
     def test_transparent_color_applies_to_every_frame(self):
         s = self.make_sprite(transparent_color=-1)
         for img in s.images:
-            self.assertEqual(drawn_colour(img, (0, 0)), (0, 0, 0))
+            self.assertEqual(drawn_color(img, (0, 0)), (0, 0, 0))
 
     def test_list_of_image_names(self):
         """A Sprite can be made from separate images in the images folder."""
@@ -188,7 +188,7 @@ class SpriteTest(SpriteTestBase):
         s = self.make_sprite(frames=6)
         self.assertEqual(
             [tuple(i.get_at((5, 5))) for i in s.images],
-            [frame_colour(c, 0) for c in range(4)] + [frame_colour(c, 1) for c in range(2)],
+            [frame_color(c, 0) for c in range(4)] + [frame_color(c, 1) for c in range(2)],
         )
 
     def test_too_many_frames(self):
@@ -214,7 +214,7 @@ class SpriteTest(SpriteTestBase):
         """Leaving out frames skips empty padding at the end of the row."""
         s = Sprite("padded", 8, 8, row=1)
         self.assertEqual([tuple(i.get_at((5, 5))) for i in s.images],
-                         [frame_colour(0, 1), frame_colour(1, 1)])
+                         [frame_color(0, 1), frame_color(1, 1)])
 
     def test_empty_frames_in_the_middle_are_kept(self):
         s = Sprite("padded", 8, 8, row=0)
@@ -227,7 +227,7 @@ class SpriteTest(SpriteTestBase):
         self.assertEqual(len(s.images), 4)
 
     def test_row_with_no_visible_frames(self):
-        # The frames are solid colours, so making each frame's own colour
+        # The frames are solid colors, so making each frame's own color
         # see-through leaves the whole row empty.
         with self.assertRaisesRegex(ValueError, "Row 1 of the sprite sheet 'padded' has no visible frames"):
             Sprite("padded", 8, 8, row=1, transparent_color=-1)

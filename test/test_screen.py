@@ -213,7 +213,7 @@ class ScreenTest(unittest.TestCase):
         assert_screen_match(self.surf, 'filled_rect')
 
     def test_rect_positional_color(self):
-        """rect(rect, color) still works with a positional colour."""
+        """rect(rect, color) still works with a positional color."""
         yellow = (255, 255, 0)
         self.screen.draw.rect(Rect((20, 20), (100, 100)), yellow, width=9)
         assert_screen_match(self.surf, 'rect')

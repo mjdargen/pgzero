@@ -35,7 +35,7 @@ from pgzero.tilemaps import (
 WHITE = (255, 255, 255, 255)
 
 
-def tile_colour(col, row):
+def tile_color(col, row):
     return (col * 100, row * 200, 77, 255)
 
 
@@ -308,7 +308,7 @@ class LoadTileMapActorsTest(TilemapTestBase):
 
     def test_tile_pixels(self):
         t = self.by_cell()[2, 0]
-        self.assertEqual(tuple(t._orig_surf.get_at((8, 8))), tile_colour(2, 1))
+        self.assertEqual(tuple(t._orig_surf.get_at((8, 8))), tile_color(2, 1))
         self.assertEqual(tuple(t._orig_surf.get_at((0, 0))), WHITE)
 
     def test_margin_and_spacing_respected(self):
@@ -431,7 +431,7 @@ class TileTest(TilemapTestBase):
         self.assertEqual(t.tile_id, 5)
         self.assertEqual(t.tile_gid, 6)
         self.assertEqual(tuple(t._orig_surf.get_at((8, 8))),
-                         tile_colour(2, 1))
+                         tile_color(2, 1))
         self.assertEqual(t.topleft, (0, 0))
 
     def test_set_tile_image_invalid_leaves_tile_unchanged(self):

@@ -232,12 +232,12 @@ class CollisionRectTest(ActorTestBase):
         self.assertEqual((a.width, a.height), (20, 30))
         self.assertEqual(a.pos, (100, 100))
         self.assertEqual(a.center, (100, 100))
-        # The image is drawn centred on the body.
+        # The image is drawn centered on the body.
         self.assertEqual(a._image_topleft(),
                          (100 - ALIEN_W / 2, 100 - ALIEN_H / 2))
 
     def test_offset_body(self):
-        """The 4-tuple offset moves the body centre relative to the image."""
+        """The 4-tuple offset moves the body center relative to the image."""
         a = Actor("alien", pos=(100, 100), collision_rect=(20, 30, 10, 5))
         self.assertEqual(a.center, (100, 100))
         self.assertEqual(a._image_topleft(),

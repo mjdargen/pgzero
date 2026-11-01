@@ -217,7 +217,7 @@ def open_loading_window():
     still be fast.
 
     run_mod() closes this window before opening the real one. Resizing it
-    instead would leave the game window off-centre on the screen.
+    instead would leave the game window off-center on the screen.
 
     """
     # An icon needs to exist before the window is created.
@@ -230,7 +230,7 @@ def open_loading_window():
 
 def run_mod(mod, **kwargs):
     """Run the module."""
-    # Start from a fresh display so the game window opens centred, rather
+    # Start from a fresh display so the game window opens centered, rather
     # than reusing the hidden loading window from prepare_mod().
     pygame.display.quit()
     pygame.display.init()

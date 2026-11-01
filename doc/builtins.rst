@@ -176,8 +176,8 @@ draw images to the screen ("blit" them).
 
 .. tip::
 
-    All of the colours can be specified as ``(r, g, b)`` tuples, or by
-    name, using one of :doc:`Pygame's colour names <colors_ref>`
+    All of the colors can be specified as ``(r, g, b)`` tuples, or by
+    name, using one of :doc:`Pygame's color names <colors_ref>`
 
 .. _rect:
 
@@ -725,7 +725,7 @@ Rotation
 The ``.angle`` attribute of an Actor controls the rotation of the sprite, in
 degrees, anticlockwise (counterclockwise).
 
-The centre of rotation is the Actor's :ref:`anchor point <anchor>`.
+The center of rotation is the Actor's :ref:`anchor point <anchor>`.
 
 Note that this will change the ``width`` and ``height`` of the Actor.
 
