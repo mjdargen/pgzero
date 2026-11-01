@@ -3,6 +3,7 @@ from . import clock
 from . import loaders
 from . import __version__
 from .game import PGZeroGame, DISPLAY_FLAGS
+from contextlib import contextmanager
 from types import ModuleType
 from argparse import ArgumentParser
 import warnings
@@ -11,20 +12,49 @@ import os
 import pygame
 
 
+@contextmanager
+def quiet_stderr():
+    """Hide anything that C libraries print straight to stderr.
+
+    Python's own errors still show, as they are raised after this ends.
+    Where stderr isn't a real file (e.g. in IDLE), this does nothing.
+    """
+    try:
+        fd = sys.stderr.fileno()
+    except (AttributeError, OSError, ValueError):
+        yield
+        return
+    sys.stderr.flush()
+    saved = os.dup(fd)
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(devnull, fd)
+    try:
+        yield
+    finally:
+        os.dup2(saved, fd)
+        os.close(saved)
+        os.close(devnull)
+
+
 def init_pygame():
     """Start pygame, using silent audio if there is no sound device.
 
-    pygame.init() doesn't raise when audio fails to start (e.g. on Codio,
-    which has no sound device). It leaves the mixer off, so the first sound
-    the game plays would raise an error. SDL reads SDL_AUDIODRIVER each time
-    audio starts, so trying again with the dummy driver gives working,
-    silent sound.
+    If audio can't start (e.g. on a virtual desktop with no sound device), try
+    again with SDL's dummy driver, which gives working, silent sound. SDL reads
+    SDL_AUDIODRIVER each time audio starts.
     """
     pygame.mixer.pre_init(frequency=22050, size=-16, channels=2)
-    pygame.init()
-    if not pygame.mixer.get_init():
+    try:
+        # On Linux without a sound card, ALSA prints a page of errors as the
+        # first attempt fails. They mean nothing to students, so hide them.
+        with quiet_stderr():
+            pygame.mixer.init()
+    except pygame.error:
         os.environ["SDL_AUDIODRIVER"] = "dummy"
         pygame.mixer.init()
+    # Start everything else. The mixer is already running, so this doesn't
+    # try (and print errors for) the sound card again.
+    pygame.init()
 
 
 init_pygame()

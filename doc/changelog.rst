@@ -37,7 +37,8 @@ Pygame Zero Plus
 * ``music.is_playing()`` can check for a particular track, and
   ``music.is_paused()`` was added.
 * Added ``clock.clear()`` to unschedule everything.
-* Games still run, with silent sound, on computers without a sound device.
+* Games still run, with silent sound, on computers without a sound device,
+  without printing the sound system's errors (e.g. ALSA's on Linux).
 * Games no longer print "no fast renderer available" on virtual desktops
   without graphics acceleration.
 * Running games one after another in the same Python process (e.g. in Spyder)

@@ -143,6 +143,27 @@ class AudioFallbackTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), '(22050, -16, 2) dummy')
 
+    def test_sound_library_messages_are_hidden(self):
+        """Messages printed by C libraries, like ALSA's when there's no
+        sound card, are hidden, but stderr works again afterwards."""
+        script = """\
+import os
+from pgzero.runner import quiet_stderr
+with quiet_stderr():
+    os.write(2, b"ALSA lib pcm.c: Unknown PCM default")
+os.write(2, b"after")
+"""
+        result = subprocess.run(
+            [sys.executable, '-c', script],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            timeout=60,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn('ALSA', result.stderr)
+        self.assertIn('after', result.stderr)
+
 
 class IDEModeTest(unittest.TestCase):
     """Games can be started with ``import pgzrun`` and ``pgzrun.go()``.
