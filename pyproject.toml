@@ -27,7 +27,7 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://github.com/mjdargen/pgzero"
-Documentation = "https://pygame-zero.readthedocs.io/"
+Documentation = "https://pgzero-plus.readthedocs.io/"
 Source = "https://github.com/mjdargen/pgzero"
 Issues = "https://github.com/mjdargen/pgzero/issues"
 

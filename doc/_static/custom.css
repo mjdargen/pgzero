@@ -76,6 +76,11 @@ div.sphinxsidebar h3 a {
     border-bottom: none !important;
 }
 
+/* Code blocks keep their light background, so don't inherit the box's white text */
+.admonition pre {
+    color: #3e4349;
+}
+
 ol li {
     margin: 1em 0;
 }
