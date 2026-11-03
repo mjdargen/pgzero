@@ -22,6 +22,7 @@ DISPLAY_FLAGS = pygame.SHOWN
 
 
 class Game:
+    ENDED_STATES = ("won", "lost", "over")
     """
     Simple game-wide state container for beginner projects.
 
@@ -124,8 +125,12 @@ class Game:
             self._is_restarting = False
 
     def _end(self, state, restart_after, clear_clock):
-        """Leave the "playing" state, optionally scheduling a restart."""
-        if self.state != "playing":
+        """End the game, optionally scheduling a restart.
+
+        Does nothing if the game has already ended, so it is safe to call
+        every frame (e.g. from update()).
+        """
+        if self.state in self.ENDED_STATES:
             return
         self._check_can_delay(restart_after)
         self.state = state
