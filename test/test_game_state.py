@@ -108,18 +108,37 @@ class GameStateTransitionTest(unittest.TestCase):
                 getattr(g, method)()
                 self.assertEqual(g.state, state)
 
-    def test_end_only_from_playing(self):
+    def test_cannot_end_twice(self):
         """Once the game has ended, a second win/lose call is ignored."""
-        g = Game()
-        g.lose()
-        g.win()
-        self.assertEqual(g.state, "lost")
+        for first, second in [("lose", "win"), ("win", "over"),
+                              ("over", "lose")]:
+            with self.subTest(first=first, second=second):
+                g = Game()
+                getattr(g, first)()
+                ended = g.state
+                getattr(g, second)()
+                self.assertEqual(g.state, ended)
 
-    def test_cannot_end_while_paused(self):
+    def test_can_end_while_paused(self):
+        """e.g. choosing "quit" from a pause menu."""
         g = Game()
         g.pause()
         g.over()
-        self.assertEqual(g.state, "paused")
+        self.assertEqual(g.state, "over")
+
+    def test_can_end_from_custom_state(self):
+        """e.g. a "dying" state that plays an animation before losing."""
+        g = Game()
+        g.state = "dying"
+        g.lose()
+        self.assertEqual(g.state, "lost")
+
+    def test_can_end_again_after_restart(self):
+        g = Game()
+        g.lose()
+        g.restart()
+        g.win()
+        self.assertEqual(g.state, "won")
 
 
 class GameTickTest(unittest.TestCase):
