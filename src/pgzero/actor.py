@@ -166,7 +166,9 @@ def _set_angle(actor, current_surface):
 
 class Actor:
     EXPECTED_INIT_KWARGS = SYMBOLIC_POSITIONS
-    DELEGATED_ATTRIBUTES = [a for a in dir(rect.ZRect) if not a.startswith("_")]
+    # A set, because __getattr__ and __setattr__ check it on every access to
+    # an attribute like x, left or center, and a set finds a name at once.
+    DELEGATED_ATTRIBUTES = frozenset(a for a in dir(rect.ZRect) if not a.startswith("_"))
 
     function_order = [_set_opacity, _set_scale, _set_flip, _set_angle]
 
@@ -278,7 +280,7 @@ class Actor:
 
     def __dir__(self):
         standard_attributes = [key for key in self.__dict__.keys() if not key.startswith("_")]
-        return standard_attributes + self.__class__.DELEGATED_ATTRIBUTES
+        return standard_attributes + sorted(self.__class__.DELEGATED_ATTRIBUTES)
 
     def _handle_unexpected_kwargs(self, kwargs):
         unexpected_kwargs = set(kwargs.keys()) - self.EXPECTED_INIT_KWARGS

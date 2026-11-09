@@ -31,6 +31,18 @@ Pygame Zero Plus
   keeping its shape and its ``WIDTH`` x ``HEIGHT`` coordinates. F11 switches
   between fullscreen and a window.
 * Added support for tilemaps created with Tiled Map Editor.
+  ``load_tile_map_actors()`` returns a ``TileMap`` of layers that work like
+  lists of tile Actors, so ``player.collidelist(walls)`` and
+  ``coins.pop(index)`` work. ``walls.get_tile(col, row)``,
+  ``walls.set_tile(col, row, tile)`` and ``walls.remove_tile(col, row)``
+  find, place and remove tiles by square, ``level.create_tile(tile_col,
+  tile_row)`` makes a new tile from the tileset, and
+  ``level.pos_to_map(x, y)`` and ``level.map_to_pos(col, row)`` convert
+  between pixels and squares. Maps scroll with ``level.x`` and ``level.y``,
+  or with ``level.follow(player)``, which keeps the player in the middle of
+  the screen and stops at the map's edges. ``level.draw()`` draws the
+  visible layers, and custom properties set in
+  Tiled are in ``tile.properties``.
 * Actors that are completely off the screen are skipped when drawn, so big tile
   maps draw much faster.
 * Added game management and restart functionality.

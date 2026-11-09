@@ -1158,21 +1158,23 @@ every tile of the same kind shares one image.
 
     Load a Tiled map from the ``maps`` directory. The extension is optional.
 
-    Returns a dictionary from each tile layer's name to a list of the tiles
-    in that layer. Empty cells are left out. Each tile is an Actor, so you
-    can draw it, move it and check it for collisions.
+    Returns a :class:`TileMap`: a dictionary from each tile layer's name to
+    that layer. A layer works like a list of its tiles, and each tile is an
+    Actor, so you can draw it, move it and check it for collisions.
 
     :param scale: Draw the map bigger or smaller. ``2`` makes every tile, and
                   the space between them, twice the size.
 
-For example, with a map that has layers called ``ground`` and ``walls``::
+For example, with a map that has layers called ``ground``, ``walls`` and
+``coins``::
 
     WIDTH = 640
     HEIGHT = 480
 
-    layers = load_tile_map_actors('level1')
-    ground = layers['ground']
-    walls = layers['walls']
+    level = load_tile_map_actors('level1')
+    ground = level['ground']
+    walls = level['walls']
+    coins = level['coins']
 
     player = Actor('player', pos=(100, 100))
 
@@ -1183,38 +1185,260 @@ For example, with a map that has layers called ``ground`` and ``walls``::
         if keyboard.right:
             player.x += 2
         if player.collidelist(walls) != -1:
-            player.pos = old_pos  # Don't walk through walls
+            player.pos = old_pos          # Don't walk through walls
+
+        coin_index = player.collidelist(coins)
+        if coin_index != -1:
+            coins.pop(coin_index)         # Collect the coin
 
     def draw():
         screen.clear()
-        for tile in ground + walls:
-            tile.draw()
+        level.draw()
         player.draw()
 
+``level.draw()`` draws every layer in the order Tiled shows them. You can still
+draw tiles yourself instead, e.g. ``for tile in ground + walls: tile.draw()``.
+
 Tiles that were flipped or rotated in Tiled keep those changes, using the
-actor's :ref:`flip attributes <flipping>`. Each tile also knows where it came
-from:
+actor's :ref:`flip attributes <flipping>`.
+
+
+Rows and columns
+''''''''''''''''
+
+A map is a grid of squares. Each square has a column (``col``), counting from
+0 at the left, and a row, counting from 0 at the top. A layer has at most one
+tile in each square, and every tile knows its square as ``tile.map_col`` and
+``tile.map_row``.
+
+::
+
+    wall = walls.get_tile(3, 4)        # the tile at col 3, row 4, or None
+    walls.remove_tile(3, 4)            # take away the tile at col 3, row 4, if there is one
+
+To add a tile, create it with ``level.create_tile(tile_col, tile_row)``, giving
+the column and row of its image in the tileset, then put it in a square with
+``set_tile()``::
+
+    wall = level.create_tile(3, 8)     # a new tile showing image col 3, row 8 of the tileset
+    walls.set_tile(5, 4, wall)         # put it at col 5, row 4 of the map
+
+If the map uses more than one tileset, say which one by its name in Tiled:
+``level.create_tile(3, 8, tileset='dungeon')``. To change the image of a tile
+already on the map, use ``set_tile_image()``::
+
+    wall = walls.get_tile(5, 4)
+    if wall:
+        wall.set_tile_image(4, 8)      # show image col 4, row 8 of the tileset instead
+
+To find the square at a position on the screen, such as where the player is or
+where the mouse was clicked, use ``level.pos_to_map(x, y)``.
+``level.map_to_pos(col, row)`` goes the other way and gives the position of the
+center of a square::
+
+    def on_mouse_down(pos):
+        x, y = pos
+        col, row = level.pos_to_map(x, y)
+        walls.remove_tile(col, row)       # Click a wall to knock it down
+
+    player.pos = level.map_to_pos(5, 2)   # Stand in the middle of a square
+
+
+Scrolling
+'''''''''
+
+Change the map's ``x`` and ``y`` to scroll it. Every tile in every layer moves
+with it, and ``set_tile()``, ``pos_to_map()`` and ``map_to_pos()`` keep
+working::
+
+    def update():
+        if keyboard.right:
+            level.x -= 3                  # Scroll left as the player goes right
+
+For a map bigger than the screen, the easiest way to scroll is to let the map
+follow the player. Move the player as usual, bumping into walls and all, then
+call ``level.follow(player)``. It scrolls the map so the player is in the
+middle of the screen, and moves the player with it. At the edges of the map it
+stops scrolling, so the player walks towards the edge of the screen instead::
+
+    def start():
+        player.pos = level.map_to_pos(60, 40)   # Start in a square of the world
+
+    def update():
+        if keyboard.right:
+            player.x += 3
+            ...                                 # Check for walls, as usual
+        level.follow(player)
+
+Actors that aren't part of the map, such as coins or other characters, have to
+scroll with it too, or they would slide across the ground. Give them to
+``follow()`` as a list::
+
+    level.follow(player, coins)
+
+Anything drawn at a fixed place on the screen, such as a score with
+``screen.draw.text()``, isn't affected, because ``follow()`` only moves the map
+and the actors you give it.
+
+
+Properties
+''''''''''
+
+In Tiled you can give each kind of tile custom properties, such as
+``solid``, ``damage`` or ``ladder``: select the tile in the tileset and add
+them in the **Properties** panel. Every tile of that kind then has them in
+``tile.properties``::
+
+    def touching_lava():
+        for tile in ground:
+            if player.colliderect(tile) and tile.properties.get('lava'):
+                return True
+        return False
+
+Use ``properties.get('lava')`` rather than ``properties['lava']`` so that tiles
+without the property count as ``None`` instead of causing an error.
+
+A layer that is hidden in Tiled isn't drawn by ``level.draw()``, but its tiles
+can still be checked for collisions. That makes a hidden layer handy for
+marking where the walls are.
+
+
+.. class:: TileMap
+
+    The map returned by :func:`load_tile_map_actors`. It is a dictionary from
+    each layer's name to its :class:`TileLayer`, so ``level['walls']`` is
+    the ``walls`` layer.
+
+    .. attribute:: layers
+
+        A list of the layers, in the order they are drawn.
+
+    .. attribute:: x
+                   y
+
+        Where the map is on the screen. Change these to scroll the map.
+
+    .. attribute:: width
+                   height
+
+        The size of the map, in squares.
+
+    .. attribute:: tile_width
+                   tile_height
+
+        The size of one square on the screen, in pixels, after ``scale``.
+
+    .. method:: draw()
+
+        Draw every visible layer, in order.
+
+    .. method:: pos_to_map(x, y)
+
+        Return the ``col, row`` of the square at a position on the screen.
+        Positions off the map give squares off the map, such as ``-1``.
+
+    .. method:: map_to_pos(col, row)
+
+        Return the ``x, y`` on the screen of the center of a square.
+
+    .. method:: follow(actor, others=[])
+
+        Scroll the map so ``actor`` is in the middle of the screen, without
+        scrolling past the map's edges. ``actor`` and every Actor in the list
+        ``others`` move with the map, so they stay in the same place in the
+        world. Call it in ``update()`` after moving the actor. Returns how far
+        everything moved, as ``x, y``.
+
+    .. method:: create_tile(tile_col, tile_row, tileset=None)
+
+        Return a new tile showing the image at ``tile_col``, ``tile_row`` of
+        the tileset, counting from 0 at the top left. The tile isn't on the
+        map until you put it in a layer with ``set_tile()``. ``tileset`` is
+        the tileset's name in Tiled, and can be left out if the map has only
+        one tileset.
+
+
+.. class:: TileLayer
+
+    One layer of a map. It works like a list of its tiles, so you can use
+    ``player.collidelist(walls)``, ``walls[i]``, ``walls.pop(i)``,
+    ``walls.remove(tile)``, ``for tile in walls``, ``len(walls)`` and
+    ``walls + ground``.
+
+    .. attribute:: name
+
+        The layer's name in Tiled.
+
+    .. attribute:: visible
+
+        Whether ``draw()`` draws the layer. This starts as it was in Tiled.
+
+    .. method:: pop(index=-1)
+
+        Remove the tile at ``index`` and return it, like a list.
+
+    .. method:: remove(tile)
+
+        Remove ``tile`` from the layer, like a list.
+
+    .. method:: append(tile)
+
+        Add ``tile`` to the layer in its square (``tile.map_col``,
+        ``tile.map_row``), replacing any tile already there.
+
+    .. method:: clear()
+
+        Remove every tile from the layer.
+
+    .. method:: get_tile(col, row)
+
+        Return the tile in a square, or ``None`` if the square is empty.
+
+    .. method:: set_tile(col, row, tile)
+
+        Put ``tile`` in a square, replacing any tile already there, and return
+        it. Make the tile with :meth:`TileMap.create_tile`. A tile can only be
+        in one square, so setting the same tile again moves it.
+
+    .. method:: remove_tile(col, row)
+
+        Remove the tile in a square, if there is one. Returns the removed
+        tile, or ``None`` if the square was empty.
+
+    .. method:: draw()
+
+        Draw the layer's tiles, if it is visible.
+
 
 .. class:: Tile
+
+    One tile of a layer. Each tile is an :ref:`Actor <actor>`.
 
     .. attribute:: map_col
                    map_row
 
-        The tile's column and row in the map.
+        The square of the map the tile is in.
 
     .. attribute:: tile_col
                    tile_row
 
-        The column and row of the tile's image in its tileset.
+        Which image of the tileset the tile shows.
+
+    .. attribute:: properties
+
+        The custom properties given to this kind of tile in Tiled. Every tile
+        of a kind shares them, so they can't be changed. To give one tile its
+        own information, set an attribute on it instead, e.g.
+        ``tile.health = 3``.
 
     .. attribute:: tile_gid
 
-        The tile's number in Tiled. Use this to find every tile of one kind,
-        such as all the coins.
+        The tile's number in Tiled, counting across every tileset in the map.
 
     .. method:: set_map_position(map_col, map_row)
 
-        Move the tile to another cell of the map.
+        Move the tile to another square. In a layer, this replaces any tile
+        already in that square.
 
     .. method:: set_tile_image(tile_col, tile_row)
 
@@ -1222,7 +1446,7 @@ from:
 
     .. method:: copy(map_col=None, map_row=None)
 
-        Return a new tile like this one, optionally in a different cell.
+        Return a new tile like this one that isn't in any layer.
 
 
 .. _game:

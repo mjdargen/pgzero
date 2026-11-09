@@ -492,7 +492,12 @@ class ZRect:
         )
 
     def colliderect(self, *other):
-        rect = self.__class__(*other)
+        # Collision checks run thousands of times a frame against tile maps,
+        # so compare with another rect directly instead of copying it first.
+        if len(other) == 1 and isinstance(other[0], RECT_CLASSES):
+            rect = other[0]
+        else:
+            rect = self.__class__(*other)
         return (
             self.x < rect.x + rect.w and
             self.y < rect.y + rect.h and
