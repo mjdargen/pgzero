@@ -1,3 +1,9 @@
+import io
+import json
+import os
+import shutil
+import tempfile
+import types
 import unittest
 from unittest import mock
 from unittest.mock import patch
@@ -54,3 +60,95 @@ class StorageTest(unittest.TestCase):
     def test_get(self):
         self.storage.load()
         self.assertEqual(self.storage['a'], 'hello')
+
+
+class StorageSaveLoadTest(unittest.TestCase):
+    """Saving and loading files, in a temporary folder."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root)
+        # A save folder that doesn't exist yet, as on a new computer
+        self.save_dir = os.path.join(self.root, "pgzero", "saves")
+        patcher = patch.object(Storage, "STORAGE_DIR", self.save_dir)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.storages = Storage.storages[:]
+        self.addCleanup(setattr, Storage, "storages", self.storages)
+
+    def make(self):
+        storage = Storage()
+        storage._set_filename_from_path(os.path.join(self.root, "my_game.py"))
+        return storage
+
+    def test_save_creates_the_save_folder(self):
+        storage = self.make()
+        storage["highscore"] = 10
+        storage.save()
+        self.assertTrue(os.path.isdir(self.save_dir))
+        with open(storage.path) as f:
+            self.assertEqual(json.load(f), {"highscore": 10})
+
+    def test_save_leaves_no_temporary_file(self):
+        storage = self.make()
+        storage["highscore"] = 10
+        storage.save()
+        self.assertEqual(os.listdir(self.save_dir), [os.path.basename(storage.path)])
+
+    def test_values_are_there_next_time(self):
+        storage = self.make()
+        storage["highscore"] = 10
+        storage.save()
+        self.assertEqual(self.make()["highscore"], 10)
+
+    def test_empty_storage_that_was_never_loaded_is_not_saved(self):
+        self.make().save()
+        self.assertFalse(os.path.exists(self.save_dir))
+
+    def test_save_does_not_print(self):
+        storage = self.make()
+        storage["highscore"] = 10
+        with patch("sys.stdout", new_callable=io.StringIO) as out:
+            storage.save()
+        self.assertEqual(out.getvalue(), "")
+
+    def test_damaged_save_file_is_set_aside(self):
+        storage = self.make()
+        os.makedirs(self.save_dir)
+        with open(storage.path, "w") as f:
+            f.write('{"highscore": 1')  # cut off part way through
+        with patch("sys.stderr", new_callable=io.StringIO) as err:
+            storage = self.make()
+        self.assertEqual(dict(storage), {})
+        self.assertIn("damaged", err.getvalue())
+        self.assertTrue(os.path.exists(storage.path + ".bak"))
+        self.assertFalse(os.path.exists(storage.path))
+
+    def test_save_all_saves_every_storage(self):
+        storage = self.make()
+        storage["lives"] = 3
+        Storage.save_all()
+        self.assertEqual(self.make()["lives"], 3)
+
+
+class RunModSavesStorageTest(unittest.TestCase):
+    """The runner saves storage when a game ends, however it ends."""
+
+    def run_mod_with(self, run):
+        from pgzero import runner
+        with patch.object(runner, "PGZeroGame") as game_class,                 patch.object(runner.pygame.display, "quit"),                 patch.object(runner.pygame.display, "init"),                 patch.object(Storage, "save_all") as save_all:
+            game_class.return_value.run.side_effect = run
+            try:
+                runner.run_mod(types.ModuleType("game"))
+            except RuntimeError:
+                pass
+        return save_all
+
+    def test_saves_when_the_game_ends(self):
+        self.run_mod_with(None).assert_called_once_with()
+
+    def test_saves_when_the_game_crashes(self):
+        def crash():
+            raise RuntimeError("oops")
+
+        self.run_mod_with(crash).assert_called_once_with()

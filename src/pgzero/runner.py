@@ -235,4 +235,9 @@ def run_mod(mod, **kwargs):
     pygame.display.quit()
     pygame.display.init()
 
-    PGZeroGame(mod, **kwargs).run()
+    try:
+        PGZeroGame(mod, **kwargs).run()
+    finally:
+        # Save storage when the game ends, however it ends, so that high
+        # scores and other saved values are there next time.
+        storage.Storage.save_all()

@@ -71,7 +71,7 @@ class GameStateRunnerTest(RunnerTestCase):
         self.assert_runnable(game_tests / 'start_hook.py')
 
     def test_new_builtins(self):
-        """Sprite, SpriteActor, game etc. are available to games."""
+        """Sprite, load_tile_map, game etc. are available to games."""
         self.assert_runnable(game_tests / 'new_builtins.py')
 
     def test_each_run_gets_a_fresh_game(self):

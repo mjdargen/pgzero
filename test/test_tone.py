@@ -45,6 +45,13 @@ class ToneTest(TestCase):
         params = _convert_args('A4', 1, waveform='square')
         self.assertIs(params.waveform, Waveform.SQUARE)
 
+    def test_waveform_and_volume_without_names(self):
+        """tone.play('A4', 1, 'square', 0.5) works like naming them."""
+        self.assertEqual(
+            _convert_args('A4', 1, 'square', 0.5),
+            _convert_args('A4', 1, waveform='square', volume=0.5),
+        )
+
 
 class CreateToneTest(TestCase):
     """Tones are generated in the mixer's own sample format."""

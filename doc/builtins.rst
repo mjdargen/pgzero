@@ -235,8 +235,8 @@ instance, if you are running into memory issues), use the `unload()` and
 Example::
 
     cow = Actor('cow')
-    loader.images.unload('cow')  # clears the cache of cow.png
-    loader.images.unload_all()  # clears all cached image files
+    images.unload('cow')  # clears the cache of cow.png
+    images.unload_all()  # clears all cached image files
 
 
 Images
@@ -308,7 +308,7 @@ to query the size of the image in pixels:
 
     .. method:: get_rect()
 
-        Get a :class:`Rect` that is pre-populated with the bounds of the image
+        Get a :ref:`Rect <rect>` that is pre-populated with the bounds of the image
         if the image was located at the origin.
 
         Effectively this is equivalent to::
@@ -572,8 +572,9 @@ referring to a time value and not a count of things.)
 
     .. method:: clear()
 
-        Unschedule everything that has been scheduled. This also stops any
-        animations started with :func:`animate`.
+        Unschedule everything that has been scheduled. Animations started with
+        :func:`animate` freeze where they are, and their ``on_finished``
+        functions are never called.
 
 
 Note that the Pygame Zero clock only holds weak references to each callback
@@ -940,6 +941,8 @@ the actor is created, or changed later:
   center.
 * ``None`` - use the whole image again.
 
+Reading ``collision_rect`` gives back what was set, or ``None``.
+
 For example::
 
     # Only a 30x40 area, 10 pixels below the image's center, counts
@@ -1018,10 +1021,13 @@ the ``images`` directory::
 
     flapping = Sprite(['bird1', 'bird2', 'bird3'], fps=8)
 
-Many actors can share one Sprite. Each actor keeps track of its own frame, so
-they don't all move in step::
+Many actors can share one Sprite. Each actor keeps track of its own frame, but
+actors that start playing at the same moment stay in step. To make them look
+less like a marching band, start each one on a different frame::
 
     enemies = [Actor(walking, pos=(x, 300)) for x in range(100, 600, 100)]
+    for n, enemy in enumerate(enemies):
+        enemy.frame = n % 6   # walking has 6 frames
 
 An actor can switch between Sprites and still images. Use ``sprite`` for
 Sprites and ``image`` for image names. Whichever you set last is what the actor
@@ -1052,7 +1058,7 @@ another animation. Make the Sprite with ``loop=False``, then check
         if hero.sprite == attack and hero.animation_finished:
             hero.sprite = standing
 
-.. class:: Sprite(image_name, frame_width, frame_height, row=0, frames=None, fps=10, transparent_color=None, loop=True, spacing=0, margin=0)
+.. class:: Sprite(image_name, frame_width=None, frame_height=None, row=0, frames=None, fps=10, transparent_color=None, loop=True, spacing=0, margin=0)
 
     One animation.
 
@@ -1123,6 +1129,7 @@ These Actor attributes and methods control the Sprite it is playing:
 
 While the whole game is paused with :meth:`game.pause() <Game.pause>`, every
 actor holds its current frame, and carries on from it after ``game.resume()``.
+:ref:`Clock <clock>` timers and :func:`animate` wait too.
 
 
 .. _tile-maps:
@@ -1154,12 +1161,12 @@ A few settings in Tiled matter:
 Big maps are fine: tiles that are off the screen are skipped when drawn, and
 every tile of the same kind shares one image.
 
-.. function:: load_tile_map_actors(tmx_name, scale=1)
+.. function:: load_tile_map(tmx_name, scale=1)
 
     Load a Tiled map from the ``maps`` directory. The extension is optional.
 
-    Returns a :class:`TileMap`: a dictionary from each tile layer's name to
-    that layer. A layer works like a list of its tiles, and each tile is an
+    Returns a :class:`TileMap`. Get each tile layer from it by its name in
+    Tiled, like a dictionary: ``level['walls']``. A layer works like a list of its tiles, and each tile is an
     Actor, so you can draw it, move it and check it for collisions.
 
     :param scale: Draw the map bigger or smaller. ``2`` makes every tile, and
@@ -1171,7 +1178,7 @@ For example, with a map that has layers called ``ground``, ``walls`` and
     WIDTH = 640
     HEIGHT = 480
 
-    level = load_tile_map_actors('level1')
+    level = load_tile_map('level1')
     ground = level['ground']
     walls = level['walls']
     coins = level['coins']
@@ -1196,7 +1203,8 @@ For example, with a map that has layers called ``ground``, ``walls`` and
         level.draw()
         player.draw()
 
-``level.draw()`` draws every layer in the order Tiled shows them. You can still
+``level.draw()`` draws every layer from the bottom of Tiled's **Layers** list
+to the top, so the map looks the way it does in Tiled. You can still
 draw tiles yourself instead, e.g. ``for tile in ground + walls: tile.draw()``.
 
 Tiles that were flipped or rotated in Tiled keep those changes, using the
@@ -1305,9 +1313,11 @@ marking where the walls are.
 
 .. class:: TileMap
 
-    The map returned by :func:`load_tile_map_actors`. It is a dictionary from
-    each layer's name to its :class:`TileLayer`, so ``level['walls']`` is
-    the ``walls`` layer.
+    The map returned by :func:`load_tile_map`. Get a :class:`TileLayer` by
+    its name, like a dictionary: ``level['walls']`` is the ``walls`` layer,
+    and ``level.get('walls')`` gives ``None`` if there is no such layer. The
+    layers can't be added, removed or replaced; change the tiles in a layer
+    instead.
 
     .. attribute:: layers
 
@@ -1318,8 +1328,8 @@ marking where the walls are.
 
         Where the map is on the screen. Change these to scroll the map.
 
-    .. attribute:: width
-                   height
+    .. attribute:: cols
+                   rows
 
         The size of the map, in squares.
 
@@ -1381,11 +1391,6 @@ marking where the walls are.
 
         Remove ``tile`` from the layer, like a list.
 
-    .. method:: append(tile)
-
-        Add ``tile`` to the layer in its square (``tile.map_col``,
-        ``tile.map_row``), replacing any tile already there.
-
     .. method:: clear()
 
         Remove every tile from the layer.
@@ -1417,12 +1422,17 @@ marking where the walls are.
     .. attribute:: map_col
                    map_row
 
-        The square of the map the tile is in.
+        The square of the map the tile is in. To move a tile to another
+        square, use :meth:`TileLayer.set_tile`.
 
     .. attribute:: tile_col
                    tile_row
 
-        Which image of the tileset the tile shows.
+        Which image of the tileset the tile shows. To change it, use
+        :meth:`set_tile_image`.
+
+    These four can be read but not assigned, because the layer keeps track of
+    where each tile is.
 
     .. attribute:: properties
 
@@ -1434,11 +1444,6 @@ marking where the walls are.
     .. attribute:: tile_gid
 
         The tile's number in Tiled, counting across every tileset in the map.
-
-    .. method:: set_map_position(map_col, map_row)
-
-        Move the tile to another square. In a layer, this replaces any tile
-        already in that square.
 
     .. method:: set_tile_image(tile_col, tile_row)
 
@@ -1507,10 +1512,6 @@ You can store your own values on ``game`` too, such as ``game.lives = 3``.
 
         How many frames have run.
 
-    .. attribute:: data
-
-        An empty dictionary for anything else you want to keep track of.
-
     .. method:: add_score(points)
 
         Add ``points`` to the score.
@@ -1521,23 +1522,23 @@ You can store your own values on ``game`` too, such as ``game.lives = 3``.
 
     .. method:: pause()
 
-        Change from ``'playing'`` to ``'paused'``.
+        Change from ``'playing'`` to ``'paused'``. While the game is paused,
+        :ref:`clock <clock>` timers, :func:`animate` and Sprite animations
+        wait, and carry on from where they were after ``resume()``. Your
+        ``update()`` still runs, so check ``game.state`` there, and resume
+        the game from something like a key press rather than a clock timer.
 
     .. method:: resume()
 
         Change from ``'paused'`` back to ``'playing'``.
-
-    .. method:: start()
-
-        Change the state to ``'playing'``.
 
     .. method:: win(restart_after=None, clear_clock='immediate')
                 lose(restart_after=None, clear_clock='immediate')
                 over(restart_after=None, clear_clock='immediate')
 
         End the game, changing the state to ``'won'``, ``'lost'`` or
-        ``'over'``. This does nothing unless the state is ``'playing'``, so it
-        is safe to call every frame.
+        ``'over'``. This does nothing if the game has already ended, so it is
+        safe to call every frame. It also ends a paused game.
 
         :param restart_after: If given, restart the game after this many
                               seconds.
@@ -1550,27 +1551,33 @@ You can store your own values on ``game`` too, such as ``game.lives = 3``.
     .. method:: restart(delay=0, clear_clock='immediate')
 
         Start the game again, after ``delay`` seconds if given. This resets
-        ``state``, ``score``, ``level``, ``timer``, ``frame_count`` and
-        ``data``, then calls your :func:`start` function.
+        ``state``, ``score``, ``level``, ``timer`` and ``frame_count``, then
+        calls your :func:`start` function.
 
         ``clear_clock`` works the same as for ``win()``.
 
     .. method:: reset()
 
-        Set ``state``, ``score``, ``level``, ``timer``, ``frame_count`` and
-        ``data`` back to their starting values, without calling ``start()``.
+        Set ``state``, ``score``, ``level``, ``timer`` and ``frame_count``
+        back to their starting values, without calling ``start()``.
 
 .. tip::
 
     ``restart()`` only resets the values above. Set up everything else, such
-    as your own variables, actor positions and ``game.lives``, in a
-    :func:`start` function, so that it is set up again on every restart::
+    as your own variables, actor positions, ``game.lives`` and timers from
+    :ref:`clock <clock>`, in a :func:`start` function, so that it is set up
+    again on every restart::
 
         def start():
             global coins
             coins = []
             game.lives = 3
             player.pos = (100, 100)
+            clock.schedule_interval(add_coin, 2.0)
+
+    Ending or restarting the game cancels everything scheduled with ``clock``
+    (unless ``clear_clock`` says otherwise), so a timer set up at the top of
+    your program would stop after the first game.
 
 When you call ``restart()`` or ``win()`` with a delay, call it from inside a
 function such as ``update()``. The game must already be running for the delay
@@ -1709,7 +1716,10 @@ Pygame Zero can play tones using a built-in synthesizer.
 
     The `waveform` changes the sound of the note. It can be ``'sin'`` (a pure,
     soft tone), ``'square'``, ``'saw'`` or ``'triangle'``. `volume` is from 0
-    (silent) to 1 (loudest).
+    (silent) to 1 (loudest). For example::
+
+        tone.play('A3', 0.5, 'square', 0.5)
+        tone.play('A3', 0.5, waveform='square', volume=0.5)   # the same
 
     The `pitch` can be specified as a number in which case it is the frequency
     of the note in hertz.
@@ -1745,7 +1755,8 @@ Data Storage
 ------------
 
 The ``storage`` object behaves just like a Python dictionary but its contents
-are preserved across game sessions. The values you assign to storage will be
+are preserved across game sessions: it is saved automatically when the game
+ends, and loaded again when it next starts. The values you assign to storage will be
 saved as JSON_, which means you can only store certain types of objects in it:
 ``list``/``tuple``, ``dict``, ``str``, ``float``/``int``, ``bool``, and
 ``None``.
@@ -1782,7 +1793,7 @@ You can read them back at any time::
 
     def draw():
         ...
-        screen.draw.text('Highscore: ' + storage['highscore'], ...)
+        screen.draw.text(f"Highscore: {storage['highscore']}", ...)
 
 ...and of course, they'll be preserved when the game next launches.
 
@@ -1815,9 +1826,10 @@ These are some of the most useful methods of ``storage``:
 
     .. method:: save()
 
-        Saves the data to disk now. You don't usually need to call this, unless
-        you're planning on using ``load()`` to reload a checkpoint, for
-        example.
+        Saves the data to disk now. You don't usually need to call this, as
+        storage is saved when the game ends, but saving straight away (say,
+        after a new high score) means it isn't lost if the computer crashes.
+        It is also useful before using ``load()`` to reload a checkpoint.
 
     .. method:: load()
 

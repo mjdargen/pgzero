@@ -15,7 +15,7 @@ class BuiltinsTest(unittest.TestCase):
             self.assertTrue(hasattr(pgz_builtins, name), name)
 
     def test_new_exports(self):
-        for name in ["Sprite", "SpriteActor", "Game", "game", "load_tile_map_actors"]:
+        for name in ["Sprite", "Game", "game", "load_tile_map", "load_tile_map_actors"]:
             self.assertIn(name, pgz_builtins.__all__)
 
     def test_game_is_a_game(self):

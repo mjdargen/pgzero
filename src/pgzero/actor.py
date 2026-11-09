@@ -1,4 +1,3 @@
-import warnings
 import pygame
 from math import radians, sin, cos, atan2, degrees, sqrt
 
@@ -786,7 +785,9 @@ class Actor:
 
     @property
     def collision_rect(self):
-        return self._rect
+        """The collision rectangle that was set: (width, height),
+        (width, height, offset_x, offset_y), or None for the whole image."""
+        return self._collision_rect_spec
 
     @collision_rect.setter
     def collision_rect(self, value):
@@ -805,7 +806,7 @@ class Actor:
             self._move_body_to_preserve_image_topleft(old_image_topleft)
 
     def draw_collision_rect(self):
-        r = self.collision_rect
+        r = self._rect
         pygame.draw.rect(
             game.screen,
             (255, 0, 0),
@@ -860,19 +861,3 @@ class Actor:
     def unload_image(self):
         if self._image_name is not None:
             loaders.images.unload(self._image_name)
-
-
-class SpriteActor(Actor):
-    """Deprecated: Actor plays Sprites itself, e.g. Actor(fox_walk).
-
-    Kept so that games written for older versions still run.
-    """
-
-    def __init__(self, *args, **kwargs):
-        warnings.warn(
-            "SpriteActor is no longer needed and will be removed. "
-            "Use Actor instead, e.g. Actor(fox_walk).",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__init__(*args, **kwargs)

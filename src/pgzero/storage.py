@@ -1,6 +1,7 @@
 import json
 import os
 import platform
+import sys
 from hashlib import sha1
 
 
@@ -63,12 +64,7 @@ class Storage(dict):
     @classmethod
     def _ensure_save_path(cls):
         """Ensure that the directory for all save game data exists."""
-        try:
-            os.makedirs(cls.STORAGE_DIR)
-        except (IsADirectoryError, PermissionError):
-            pass
-        except FileExistsError:
-            pass
+        os.makedirs(cls.STORAGE_DIR, exist_ok=True)
 
     def _set_filename_from_path(self, file_path):
         """Set the path to save to from the given filename.
@@ -110,9 +106,21 @@ class Storage(dict):
         except FileNotFoundError:
             # If no file exists, it's fine
             pass
-        except json.JSONDecodeError:
-            raise StorageCorruptionException(
-                "Storage is corrupted. Couldn't load the data."
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            # A damaged save file (e.g. the computer turned off while it was
+            # being written) shouldn't stop the game from starting. Keep it
+            # as a .bak file, in case it can be fixed by hand, and start
+            # with empty storage.
+            backup = self.path + '.bak'
+            try:
+                os.replace(self.path, backup)
+            except OSError:
+                backup = None
+            print(
+                "Warning: the saved data for this game was damaged, so the "
+                "game is starting without it."
+                + (" The damaged file was kept as {}".format(backup) if backup else ""),
+                file=sys.stderr,
             )
         else:
             self.update(data)
@@ -141,10 +149,14 @@ class Storage(dict):
                 )
             )
         else:
+            self._ensure_save_path()
             path = self.path
-            with open(path, 'w+') as f:
+            # Write to a temporary file, then swap it in, so the save file is
+            # never left half-written if the game is closed while saving.
+            temp_path = path + '.tmp'
+            with open(temp_path, 'w') as f:
                 f.write(data)
-            print("Saved storage to", path)
+            os.replace(temp_path, path)
 
     # Constants for use with isinstance in _get_json_error_keys()
     JSON_PRIMITIVES = (float, int, str, bool, type(None))

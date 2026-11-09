@@ -1,3 +1,4 @@
+import inspect
 import sys
 import operator
 import time
@@ -22,13 +23,14 @@ DISPLAY_FLAGS = pygame.SHOWN
 
 
 class Game:
-    ENDED_STATES = ("won", "lost", "over")
     """
     Simple game-wide state container for beginner projects.
 
     Use this to keep track of things like score, level, timers, and
     the current game state without needing lots of global variables.
     """
+
+    ENDED_STATES = ("won", "lost", "over")
 
     def __init__(self):
         self._start_callback = None
@@ -50,8 +52,6 @@ class Game:
 
         self.timer = 0
         self.frame_count = 0
-
-        self.data = {}
 
     def restart(self, delay=0.0, clear_clock="immediate"):
         """
@@ -150,10 +150,6 @@ class Game:
 
     def over(self, restart_after=None, clear_clock="immediate"):
         self._end("over", restart_after, clear_clock)
-
-    def start(self):
-        """Start or resume normal gameplay."""
-        self.state = "playing"
 
     def pause(self):
         """Pause the game."""
@@ -421,10 +417,34 @@ class PGZeroGame:
             return draw
 
     def get_start_func(self):
-        """Get the start() function from the user module if it exists."""
+        """Get the start() function from the user module if it exists.
+
+        Pygame Zero calls start() with no arguments when the game starts and
+        on every restart. A game written for Pygame Zero may already use the
+        name start for something else, such as a start position or its own
+        start(level) function, so those are left alone.
+        """
         start = getattr(self.mod, "start", None)
-        if start is not None and not callable(start):
-            raise TypeError(f"{start!r} is not callable")
+        if start is None or not callable(start):
+            return None
+        try:
+            params = inspect.signature(start).parameters.values()
+        except (TypeError, ValueError):
+            return start
+        required = [
+            p.name for p in params
+            if p.default is p.empty and p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY)
+        ]
+        if required:
+            print(
+                "Note: start() needs {} ({}), so Pygame Zero won't call it when "
+                "the game starts. To have it called automatically, give start() "
+                "no parameters.".format(
+                    "an argument" if len(required) == 1 else "arguments", ", ".join(required)
+                ),
+                file=sys.stderr,
+            )
+            return None
         return start
 
     def run(self):
@@ -469,21 +489,23 @@ class PGZeroGame:
         self.handlers[pygame.KEYDOWN] = key_down
         self.handlers[pygame.KEYUP] = key_up
 
+    def get_game_obj(self):
+        """Return Pygame Zero's Game object for this game, or None.
+
+        Only a Game counts: a game written for Pygame Zero may have its own
+        variable called game, which must be left alone.
+        """
+        for game_obj in (getattr(self.mod, "game", None), getattr(builtins, "game", None)):
+            if isinstance(game_obj, Game):
+                return game_obj
+        return None
+
     def tick_game_state(self, dt):
         """Tick the global game object if it exists."""
-        game_obj = getattr(self.mod, "game", None)
-
-        if game_obj is None:
-            game_obj = getattr(builtins, "game", None)
-
+        game_obj = self.get_game_obj()
         if game_obj is None:
             return False
-
-        tick = getattr(game_obj, "tick", None)
-        if not callable(tick):
-            return False
-
-        tick(dt)
+        game_obj.tick(dt)
         return True
 
     def handle_events(self, dt, update) -> bool:
@@ -505,9 +527,13 @@ class PGZeroGame:
                 handler(event)
                 updated = True
 
-        clock = pgzero.clock.clock
-        clock.tick(dt)
-        updated |= clock.fired
+        # While the game is paused, clock timers and animate() wait too, and
+        # carry on from where they were when it resumes.
+        game_obj = self.get_game_obj()
+        if game_obj is None or game_obj.state != "paused":
+            clock = pgzero.clock.clock
+            clock.tick(dt)
+            updated |= clock.fired
 
         updated |= self.tick_game_state(dt)
 
@@ -526,11 +552,8 @@ class PGZeroGame:
         draw = self.get_draw_func()
         start = self.get_start_func()
 
-        game_obj = getattr(self.mod, "game", None)
-        if game_obj is None:
-            game_obj = getattr(builtins, "game", None)
-
-        if game_obj is not None and hasattr(game_obj, "_bind_engine"):
+        game_obj = self.get_game_obj()
+        if game_obj is not None:
             game_obj._bind_engine(start_callback=start, clock=pgzero.clock.clock)
 
         global current_game

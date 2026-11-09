@@ -22,6 +22,7 @@ from pgzero import loaders
 from pgzero.actor import Actor
 from pgzero.loaders import set_root
 from pgzero.tilemaps import (
+    load_tile_map,
     FLIP_D,
     FLIP_H,
     FLIP_V,
@@ -129,18 +130,6 @@ class LoadTilesetsTest(TilemapTestBase):
         self.assertEqual(ts["tile_count"], 6)
         self.assertEqual((ts["margin"], ts["spacing"]), (1, 2))
 
-    def test_legacy_aliases(self):
-        """sheet_w / sheet_h are kept for older student code."""
-        ts = self.load("""
-            <map>
-             <tileset firstgid="1" tilewidth="8" tileheight="8"
-                      spacing="2" margin="1">
-              <image source="tiles.png"/>
-             </tileset>
-            </map>
-        """)[1]
-        self.assertEqual(ts["sheet_w"], ts["columns"])
-        self.assertEqual(ts["sheet_h"], ts["rows"])
 
     def test_columns_and_count_calculated_when_missing(self):
         ts = self.load("""
@@ -444,16 +433,6 @@ class TileTest(TilemapTestBase):
             t.set_tile_image(5, 0)
         self.assertEqual((t.tile_col, t.tile_row, t.tile_gid), (0, 0, 1))
 
-    def test_set_map_position(self):
-        t = self.tile
-        t.set_map_position(3, 1)
-        self.assertEqual((t.map_col, t.map_row), (3, 1))
-        self.assertEqual(t.topleft, (48, 16))
-
-    def test_set_map_position_scaled(self):
-        t = self.make_tile(scale=2)
-        t.set_map_position(1, 2)
-        self.assertEqual(t.topleft, (32, 64))
 
     def test_copy(self):
         t = self.make_tile(tile_col=2, tile_row=1, map_col=1, map_row=1,
@@ -596,15 +575,38 @@ class TileMapTest(TilemapTestBase):
 
     def test_returns_a_tile_map(self):
         self.assertIsInstance(self.level, TileMap)
-        self.assertIsInstance(self.level, dict)
         self.assertIsInstance(self.level["ground"], TileLayer)
+
+    def test_old_name_still_works(self):
+        self.assertIs(load_tile_map_actors, load_tile_map)
+
+    def test_reads_like_a_dict(self):
+        self.assertEqual(list(self.level.keys()), ["ground", "empty"])
+        self.assertIs(self.level.get("ground"), self.level.layers[0])
+        self.assertIn("ground", self.level)
+        self.assertEqual(len(self.level), 2)
+        self.assertEqual([name for name, layer in self.level.items()], ["ground", "empty"])
+
+    def test_cannot_be_changed_like_a_dict(self):
+        for change in [
+            lambda: self.level.__setitem__("walls", self.level["ground"]),
+            lambda: self.level.__delitem__("ground"),
+            self.level.clear,
+            lambda: self.level.pop("ground"),
+            self.level.popitem,
+            lambda: self.level.update({}),
+            lambda: self.level.setdefault("walls", None),
+        ]:
+            with self.assertRaisesRegex(TypeError, "can't be added, removed or replaced"):
+                change()
+        self.assertEqual(list(self.level), ["ground", "empty"])
 
     def test_layers_in_drawing_order(self):
         self.assertEqual(list(self.level), ["ground", "empty"])
         self.assertEqual([layer.name for layer in self.level.layers], ["ground", "empty"])
 
     def test_sizes(self):
-        self.assertEqual((self.level.width, self.level.height), (4, 2))
+        self.assertEqual((self.level.cols, self.level.rows), (4, 2))
         self.assertEqual((self.level.tile_width, self.level.tile_height), (16, 16))
 
     def test_scaled_sizes(self):
@@ -718,37 +720,6 @@ class LayerAsListTest(TilemapTestBase):
                 self.ground.remove(tile)
         self.assertEqual([map_pos(t) for t in self.ground], [(2, 1), (3, 1)])
 
-    def test_append(self):
-        tile = self.ground[0].copy(map_col=1, map_row=0)
-        self.ground.append(tile)
-        self.assertIs(self.ground.get_tile(1, 0), tile)
-        self.assertIs(self.ground[-1], tile)
-        self.assertEqual(tile.topleft, (16, 0))
-        self.assertEqual(len(self.ground), 8)
-
-    def test_append_replaces_tile_in_that_square(self):
-        old = self.ground.get_tile(2, 0)
-        tile = self.ground[0].copy(map_col=2, map_row=0)
-        self.ground.append(tile)
-        self.assertIs(self.ground.get_tile(2, 0), tile)
-        self.assertNotIn(old, self.ground)
-        self.assertEqual(len(self.ground), 7)
-
-    def test_append_moves_tile_from_another_layer(self):
-        empty = self.level["empty"]
-        tile = self.ground[0]
-        empty.append(tile)
-        self.assertIn(tile, empty)
-        self.assertNotIn(tile, self.ground)
-        self.assertEqual(len(self.ground), 6)
-
-    def test_append_not_a_tile(self):
-        with self.assertRaisesRegex(TypeError, "Only tiles"):
-            self.ground.append("grass")
-
-    def test_append_off_the_map(self):
-        with self.assertRaisesRegex(ValueError, "off the map"):
-            self.ground.append(self.ground[0].copy(map_col=4))
 
     def test_item_assignment_is_not_supported(self):
         with self.assertRaises(TypeError):
@@ -878,6 +849,25 @@ class GetSetTileTest(TilemapTestBase):
         self.assertEqual(tile.topleft, (32, 0))
         self.assertEqual((tile.width, tile.height), (32, 32))
 
+    def test_tile_square_is_read_only(self):
+        wall = self.ground.get_tile(2, 0)
+        for name in ["map_col", "map_row"]:
+            with self.assertRaisesRegex(AttributeError, "can't be changed directly.*set_tile"):
+                setattr(wall, name, 1)
+        self.assertEqual(map_pos(wall), (2, 0))
+        self.ground.remove(wall)  # the layer still knows where it is
+
+    def test_tile_image_is_read_only(self):
+        wall = self.ground.get_tile(2, 0)
+        for name in ["tile_col", "tile_row", "tile_id", "tile_gid", "tileset_firstgid"]:
+            with self.assertRaisesRegex(AttributeError, "can't be changed directly.*set_tile_image"):
+                setattr(wall, name, 0)
+        self.assertEqual((wall.tile_col, wall.tile_row), (2, 1))
+
+    def test_layer_has_no_append(self):
+        """set_tile(col, row, tile) is the one way to add a tile."""
+        self.assertFalse(hasattr(self.ground, "append"))
+
     def test_remove_tile(self):
         wall = self.ground.get_tile(2, 0)
         self.assertIs(self.ground.remove_tile(2, 0), wall)
@@ -894,26 +884,7 @@ class GetSetTileTest(TilemapTestBase):
         with self.assertRaisesRegex(TypeError, "pos_to_map"):
             self.ground.remove_tile(40.5, 12)
 
-    def test_set_map_position_moves_tile_in_layer(self):
-        tile = self.ground.get_tile(0, 0)
-        tile.set_map_position(1, 0)
-        self.assertIs(self.ground.get_tile(1, 0), tile)
-        self.assertIsNone(self.ground.get_tile(0, 0))
-        self.assertEqual(tile.topleft, (16, 0))
 
-    def test_set_map_position_replaces_tile_there(self):
-        tile = self.ground.get_tile(0, 0)
-        replaced = self.ground.get_tile(2, 0)
-        tile.set_map_position(2, 0)
-        self.assertIs(self.ground.get_tile(2, 0), tile)
-        self.assertNotIn(replaced, self.ground)
-        self.assertEqual(len(self.ground), 6)
-
-    def test_set_map_position_off_the_map(self):
-        tile = self.ground.get_tile(0, 0)
-        with self.assertRaisesRegex(ValueError, "off the map"):
-            tile.set_map_position(9, 0)
-        self.assertIs(self.ground.get_tile(0, 0), tile)
 
 
 class PositionTest(TilemapTestBase):
@@ -980,8 +951,8 @@ class PositionTest(TilemapTestBase):
         added = self.ground.set_tile(1, 0, self.level.create_tile(0, 0, tileset="tiles"))
         self.assertEqual(added.topleft, (6, 0))
         moved = self.ground.get_tile(0, 0)
-        moved.set_map_position(0, 1)
-        self.assertEqual(moved.topleft, (-10, 16))
+        self.ground.set_tile(1, 0, moved)
+        self.assertEqual(moved.topleft, (6, 0))
 
     def test_scrolling_keeps_tiles_moved_by_hand(self):
         tile = self.ground[0]
@@ -989,11 +960,11 @@ class PositionTest(TilemapTestBase):
         self.level.x = 5
         self.assertEqual(tile.topleft, (5, -3))
 
-    def test_tile_not_in_a_layer_ignores_scrolling(self):
+    def test_tile_put_back_after_scrolling_follows_the_map(self):
         tile = self.ground.pop(0)
         self.level.x = 50
-        tile.set_map_position(1, 1)
-        self.assertEqual(tile.topleft, (16, 16))
+        self.ground.set_tile(1, 1, tile)
+        self.assertEqual(tile.topleft, (66, 16))
 
 
 class FollowTest(TilemapTestBase):

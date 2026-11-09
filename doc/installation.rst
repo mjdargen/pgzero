@@ -61,7 +61,7 @@ If you use ``flake8``, you can add Pygame Zero's list of builtins to your
 .. code-block:: ini
 
     [flake8]
-    builtins = Actor,Game,Rect,Sprite,ZRect,animate,clock,exit,game,images,keyboard,keymods,keys,load_tile_map_actors,mouse,music,screen,sounds,storage,tone
+    builtins = Actor,Game,Rect,Sprite,ZRect,animate,clock,exit,game,images,keyboard,keymods,keys,load_tile_map,load_tile_map_actors,mouse,music,screen,sounds,storage,tone
 
 If you use `pyflakes` directly then this is configured using the environment
 variable ``$PYFLAKES_BUILTINS``. On Linux and Mac you could write this in your
@@ -69,11 +69,11 @@ terminal or put it in your shell configuration file (like ``~/.bashrc``)
 
 .. code-block:: bash
 
-    PYFLAKES_BUILTINS=Actor,Game,Rect,Sprite,ZRect,animate,clock,exit,game,images,keyboard,keymods,keys,load_tile_map_actors,mouse,music,screen,sounds,storage,tone
+    PYFLAKES_BUILTINS=Actor,Game,Rect,Sprite,ZRect,animate,clock,exit,game,images,keyboard,keymods,keys,load_tile_map,load_tile_map_actors,mouse,music,screen,sounds,storage,tone
     export PYFLAKES_BUILTINS
 
 On Windows:
 
 .. code-block:: none
 
-    set PYFLAKES_BUILTINS=Actor,Game,Rect,Sprite,ZRect,animate,clock,exit,game,images,keyboard,keymods,keys,load_tile_map_actors,mouse,music,screen,sounds,storage,tone
+    set PYFLAKES_BUILTINS=Actor,Game,Rect,Sprite,ZRect,animate,clock,exit,game,images,keyboard,keymods,keys,load_tile_map,load_tile_map_actors,mouse,music,screen,sounds,storage,tone

@@ -2,7 +2,7 @@ import math
 import numbers
 import os
 import types
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 import pygame
 import xml.etree.ElementTree as ET
@@ -68,9 +68,38 @@ def _check_number(name, value):
         )
 
 
+def _read_only(name, advice):
+    """A property that can be read but not assigned, with a helpful error."""
+    private = "_" + name
+
+    def get(self):
+        return getattr(self, private)
+
+    def set(self, value):
+        raise AttributeError(f"A tile's {name} can't be changed directly. {advice}")
+
+    return property(get, set)
+
+
+_MOVE_ADVICE = "To move a tile, put it in another square with layer.set_tile(col, row, tile)."
+_IMAGE_ADVICE = "To show another image from the tileset, use tile.set_tile_image(tile_col, tile_row)."
+
+
 class Tile(Actor):
     """One tile of a tile map. Each tile is an Actor, so it can be drawn,
-    animated and checked for collisions like any other actor."""
+    animated and checked for collisions like any other actor.
+
+    Its square on the map and its image in the tileset can be read but not
+    assigned, because the layer keeps track of where each tile is.
+    """
+
+    map_col = _read_only("map_col", _MOVE_ADVICE)
+    map_row = _read_only("map_row", _MOVE_ADVICE)
+    tile_col = _read_only("tile_col", _IMAGE_ADVICE)
+    tile_row = _read_only("tile_row", _IMAGE_ADVICE)
+    tile_id = _read_only("tile_id", _IMAGE_ADVICE)
+    tile_gid = _read_only("tile_gid", _IMAGE_ADVICE)
+    tileset_firstgid = _read_only("tileset_firstgid", _IMAGE_ADVICE)
 
     def __init__(
         self,
@@ -90,7 +119,7 @@ class Tile(Actor):
     ):
         self._tileset = tileset
         self._layer = layer
-        self.tileset_firstgid = tileset_firstgid
+        self._tileset_firstgid = tileset_firstgid
         self._map_tile_width = map_tile_width
         self._map_tile_height = map_tile_height
         self._map_scale = max(0.0, scale)
@@ -152,10 +181,10 @@ class Tile(Actor):
         if tile_id >= tile_count:
             raise ValueError(f"tile_col={tile_col}, tile_row={tile_row} points past the tileset's last tile.")
 
-        self.tile_col = tile_col
-        self.tile_row = tile_row
-        self.tile_id = tile_id
-        self.tile_gid = self.tileset_firstgid + self.tile_id
+        self._tile_col = tile_col
+        self._tile_row = tile_row
+        self._tile_id = tile_id
+        self._tile_gid = self._tileset_firstgid + tile_id
 
         return _get_tile_surface(
             self._tileset,
@@ -165,18 +194,10 @@ class Tile(Actor):
             max(1, round(self._map_tile_height * self._map_scale)),
         )
 
-    def set_map_position(self, map_col, map_row):
-        """Move the tile to another square of the map. In a layer, this
-        replaces any tile already in that square."""
-        if self._layer is not None:
-            self._layer._put(self, map_col, map_row)
-        else:
-            self._place(map_col, map_row)
-
     def _place(self, map_col, map_row):
         """Record the tile's square and put it there on the screen."""
-        self.map_col = map_col
-        self.map_row = map_row
+        self._map_col = map_col
+        self._map_row = map_row
 
         if self._layer is not None:
             # Use the map's grid, even if this one tile has been scaled.
@@ -277,13 +298,6 @@ class TileLayer(Sequence):
             raise ValueError("{!r} is not in layer {!r}".format(tile, self.name))
         self._take(tile)
 
-    def append(self, tile):
-        """Add tile to the layer at its map_col and map_row, replacing any
-        tile already in that square."""
-        if not isinstance(tile, Tile):
-            raise TypeError("Only tiles can be added to a layer, not {!r}".format(tile))
-        self._put(tile, tile.map_col, tile.map_row)
-
     def clear(self):
         """Remove every tile from the layer."""
         for tile in self._tiles.values():
@@ -373,34 +387,77 @@ class TileLayer(Sequence):
             r.y += dy
 
 
-class TileMap(dict):
-    """A map loaded from Tiled: a dictionary from each layer's name to its
-    layer, in the order Tiled draws them."""
+_CHANGE_MAP_ERROR = (
+    "A tile map's layers can't be added, removed or replaced. Change the tiles "
+    "in a layer instead, e.g. level['walls'].remove_tile(col, row)."
+)
 
-    def __init__(self, name, map_tile_width, map_tile_height, scale=1, width=0, height=0, tilesets=None):
-        super().__init__()
+
+class TileMap(Mapping):
+    """A map loaded from Tiled. Get a layer by its name, like a dictionary:
+    level['walls']. The layers are in the order Tiled draws them.
+
+    The map can be read like a dictionary, but not changed like one.
+    """
+
+    def __init__(self, name, map_tile_width, map_tile_height, scale=1, cols=0, rows=0, tilesets=None):
         self._name = name
+        self._layers = {}  # name: TileLayer, in drawing order
         self._tilesets = tilesets if tilesets is not None else {}
         self._scale = scale
-        self.width = width
-        self.height = height
+        self._cols = cols
+        self._rows = rows
         self._map_tile_width = map_tile_width
         self._map_tile_height = map_tile_height
         self._x = 0
         self._y = 0
 
     def __repr__(self):
-        return "<TileMap {!r} with layers {}>".format(self._name, list(self))
+        return "<TileMap {!r} with layers {}>".format(self._name, list(self._layers))
 
-    def __missing__(self, key):
-        raise KeyError(
-            "{!r} has no layer named {!r}. Its layers are: {}".format(self._name, key, ", ".join(map(repr, self)))
-        )
+    # Reading it like a dictionary of layers
+
+    def __getitem__(self, name):
+        try:
+            return self._layers[name]
+        except KeyError:
+            raise KeyError(
+                "{!r} has no layer named {!r}. Its layers are: {}".format(
+                    self._name, name, ", ".join(map(repr, self._layers))
+                )
+            ) from None
+
+    def __iter__(self):
+        return iter(self._layers)
+
+    def __len__(self):
+        return len(self._layers)
+
+    def __setitem__(self, name, value):
+        raise TypeError(_CHANGE_MAP_ERROR)
+
+    def __delitem__(self, name):
+        raise TypeError(_CHANGE_MAP_ERROR)
+
+    def _cannot_change(self, *args, **kwargs):
+        raise TypeError(_CHANGE_MAP_ERROR)
+
+    clear = pop = popitem = update = setdefault = _cannot_change
 
     @property
     def layers(self):
         """The layers, in the order they are drawn."""
-        return list(self.values())
+        return list(self._layers.values())
+
+    @property
+    def cols(self):
+        """How many squares wide the map is."""
+        return self._cols
+
+    @property
+    def rows(self):
+        """How many squares tall the map is."""
+        return self._rows
 
     @property
     def tile_width(self):
@@ -436,7 +493,7 @@ class TileMap(dict):
             return
         self._x += dx
         self._y += dy
-        for layer in self.values():
+        for layer in self._layers.values():
             layer._shift(dx, dy)
 
     def pos_to_map(self, x, y=None):
@@ -482,8 +539,8 @@ class TileMap(dict):
             others = [others]
 
         screen_width, screen_height = game.screen.get_size()
-        dx = self._follow_shift(actor.x, self._x, self.width * self.tile_width, screen_width)
-        dy = self._follow_shift(actor.y, self._y, self.height * self.tile_height, screen_height)
+        dx = self._follow_shift(actor.x, self._x, self._cols * self.tile_width, screen_width)
+        dy = self._follow_shift(actor.y, self._y, self._rows * self.tile_height, screen_height)
 
         if dx or dy:
             self._scroll(dx, dy)
@@ -506,7 +563,7 @@ class TileMap(dict):
 
     def draw(self):
         """Draw every visible layer, in order."""
-        for layer in self.values():
+        for layer in self._layers.values():
             layer.draw()
 
     def create_tile(self, tile_col, tile_row, tileset=None):
@@ -542,11 +599,12 @@ class TileMap(dict):
         )
 
     def _check_on_map(self, col, row):
-        if self.width and not 0 <= col < self.width or self.height and not 0 <= row < self.height:
+        cols, rows = self._cols, self._rows
+        if cols and not 0 <= col < cols or rows and not 0 <= row < rows:
             raise ValueError(
-                f"col {col}, row {row} is off the map. This map is {self.width} "
-                f"squares wide and {self.height} tall, so col goes from 0 to "
-                f"{self.width - 1} and row from 0 to {self.height - 1}."
+                f"col {col}, row {row} is off the map. This map is {cols} "
+                f"squares wide and {rows} tall, so col goes from 0 to "
+                f"{cols - 1} and row from 0 to {rows - 1}."
             )
 
     def _new_tile(self, layer, tileset, firstgid, tile_col, tile_row, col, row, flip_h=False, flip_v=False, flip_d=False):
@@ -711,10 +769,6 @@ def _load_tilesets(root, tmx_name):
             "columns": columns,
             "rows": rows,
             "tile_count": tile_count,
-            # Keep these aliases so older student code that checks sheet_w or
-            # sheet_h does not immediately break.
-            "sheet_w": columns,
-            "sheet_h": rows,
             "spacing": spacing,
             "margin": margin,
             "properties": tile_properties,
@@ -734,7 +788,7 @@ def _tile_layers(element, visible=True):
             yield from _tile_layers(child, child_visible)
 
 
-def load_tile_map_actors(tmx_name, scale=1):
+def load_tile_map(tmx_name, scale=1):
     """
     Load a Tiled TMX map into a TileMap: a dict of
         {layer_name: TileLayer}
@@ -763,14 +817,14 @@ def load_tile_map_actors(tmx_name, scale=1):
         map_tile_width=int(root.attrib["tilewidth"]),
         map_tile_height=int(root.attrib["tileheight"]),
         scale=max(0.0, scale),
-        width=int(root.attrib.get("width", 0)),
-        height=int(root.attrib.get("height", 0)),
+        cols=int(root.attrib.get("width", 0)),
+        rows=int(root.attrib.get("height", 0)),
         tilesets=tilesets,
     )
 
     for layer, visible in _tile_layers(root):
         name = layer.attrib["name"]
-        if name in tile_map:
+        if name in tile_map._layers:
             raise ValueError(
                 f"{tmx_name!r} has more than one layer named {name!r}. "
                 "Give each layer a different name in Tiled."
@@ -779,7 +833,7 @@ def load_tile_map_actors(tmx_name, scale=1):
         height = int(layer.attrib["height"])
 
         map_layer = TileLayer(tile_map, name, visible=visible)
-        tile_map[name] = map_layer
+        tile_map._layers[name] = map_layer
 
         data = layer.find("data")
         if data is None or data.text is None:
@@ -825,3 +879,8 @@ def load_tile_map_actors(tmx_name, scale=1):
                 )
 
     return tile_map
+
+
+# The name this function had before it returned a TileMap. Kept so that games
+# written with it still run.
+load_tile_map_actors = load_tile_map

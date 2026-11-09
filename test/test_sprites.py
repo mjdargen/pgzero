@@ -20,7 +20,7 @@ from unittest import mock
 import pygame
 
 from pgzero.loaders import images, set_root
-from pgzero.actor import Actor, SpriteActor
+from pgzero.actor import Actor
 from pgzero.sprites import SpriteSheet, Sprite
 
 # A size for the stand-in screen, so that Actor.draw() can tell the actor is on it
@@ -246,13 +246,6 @@ class SpriteTest(SpriteTestBase):
         with self.assertRaisesRegex(ValueError, "fps must be more than 0"):
             self.make_sprite(fps=0)
 
-    def test_copy(self):
-        """copy() still works for code written for older versions."""
-        s = self.make_sprite(fps=7, loop=False)
-        c = s.copy()
-        self.assertIsNot(c, s)
-        self.assertEqual(c.images, s.images)
-        self.assertEqual((c.fps, c.loop), (7, False))
 
 
 class ActorSpriteTest(SpriteTestBase):
@@ -550,17 +543,6 @@ class ActorImageAndSpriteTest(SpriteTestBase):
         a.reset_animation()  # does nothing
         with self.assertRaisesRegex(ValueError, "isn't playing a Sprite"):
             a.frame = 1
-
-
-class SpriteActorTest(SpriteTestBase):
-    def test_deprecated(self):
-        """SpriteActor still works, but warns that Actor should be used."""
-        s = self.make_sprite()
-        with self.assertWarnsRegex(DeprecationWarning, "Use Actor instead"):
-            a = SpriteActor(s, pos=(50, 50))
-        self.assertIsInstance(a, Actor)
-        self.assertIs(a.sprite, s)
-        self.assertEqual(a.pos, (50, 50))
 
 
 if __name__ == "__main__":

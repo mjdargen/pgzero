@@ -7,13 +7,13 @@ Pygame Zero Plus
 0.1.0 - Initial release
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-* Enhanced Actors with scaling, flipping, opacity, and custom collisions.
+* Enhanced Actors with scaling, flipping, and custom collision rectangles.
 * Added ``actor.move_toward(target, speed)``, e.g. to make an enemy chase the
   player.
 * Added ``actor.visible``. Hidden actors aren't drawn but still move and
   collide, like ``visible`` in Godot.
-* ``Actor()`` accepts ``scale``, ``angle``, ``opacity``, ``flip_h``, ``flip_v``
-  and ``flip_d``, applied before positioning, so the position given is where
+* ``Actor()`` accepts ``scale``, ``angle``, ``opacity``, ``flip_h``, ``flip_v``,
+  ``flip_d`` and ``visible``, applied before positioning, so the position given is where
   the finished actor ends up, e.g.
   ``Actor('fox', midbottom=(100, HEIGHT), scale=4)``.
 * ``Actor()`` no longer silently ignores keyword arguments it doesn't use. It
@@ -31,7 +31,7 @@ Pygame Zero Plus
   keeping its shape and its ``WIDTH`` x ``HEIGHT`` coordinates. F11 switches
   between fullscreen and a window.
 * Added support for tilemaps created with Tiled Map Editor.
-  ``load_tile_map_actors()`` returns a ``TileMap`` of layers that work like
+  ``load_tile_map()`` returns a ``TileMap`` of layers that work like
   lists of tile Actors, so ``player.collidelist(walls)`` and
   ``coins.pop(index)`` work. ``walls.get_tile(col, row)``,
   ``walls.set_tile(col, row, tile)`` and ``walls.remove_tile(col, row)``
@@ -40,18 +40,28 @@ Pygame Zero Plus
   ``level.pos_to_map(x, y)`` and ``level.map_to_pos(col, row)`` convert
   between pixels and squares. Maps scroll with ``level.x`` and ``level.y``,
   or with ``level.follow(player)``, which keeps the player in the middle of
-  the screen and stops at the map's edges. ``level.draw()`` draws the
-  visible layers, and custom properties set in
-  Tiled are in ``tile.properties``.
+  the screen and stops at the map's edges. ``level.cols`` and ``level.rows``
+  give the map's size in squares. ``level.draw()`` draws the visible layers,
+  and custom properties set in Tiled are in ``tile.properties``.
+  ``load_tile_map_actors()``, the name used in the alpha releases, still
+  works.
 * Actors that are completely off the screen are skipped when drawn, so big tile
   maps draw much faster.
-* Added game management and restart functionality.
+* Added game management and restart functionality. Pausing the game also
+  pauses ``clock`` timers, ``animate()`` and Sprite animations.
 * Added a ``start()`` hook, called when the game starts and on every restart.
+  Games written for Pygame Zero that already use the name ``start`` (for a
+  variable, or a function that takes arguments) or ``game`` (for their own
+  object) keep working: those are left alone.
 * ``screen.draw.rect()`` and ``screen.draw.filled_rect()`` also accept a
   position and size, e.g. ``screen.draw.rect((20, 20), (100, 50), 'red')``.
 * ``music.is_playing()`` can check for a particular track, and
   ``music.is_paused()`` was added.
-* Added ``clock.clear()`` to unschedule everything.
+* Documented ``clock.clear()``, which unschedules everything.
+* ``storage`` is saved automatically when the game ends, as the documentation
+  always said. ``storage.save()`` creates the save folder if it doesn't exist
+  yet and writes the file safely, and a damaged save file no longer stops the
+  game from starting: it is set aside as a ``.bak`` file.
 * Games still run, with silent sound, on computers without a sound device,
   without printing the sound system's errors (e.g. ALSA's on Linux).
 * Games no longer print "no fast renderer available" on virtual desktops
@@ -63,6 +73,14 @@ Pygame Zero Plus
   Python when run from a virtual environment. pygame 2 doesn't need it.
 * Uppercase keyboard names such as ``keyboard.LEFT`` no longer print
   deprecation warnings.
+* Changes since the alpha releases: ``SpriteActor`` (use ``Actor``),
+  ``Sprite.copy()`` (Sprites can be shared), ``game.start()``, ``game.data``
+  (use your own attributes, e.g. ``game.lives``), ``layer.append()`` and
+  ``tile.set_map_position()`` (use ``layer.set_tile()``) and the tileset
+  ``sheet_w`` and ``sheet_h`` values were removed. A tile's ``map_col``,
+  ``map_row``, ``tile_col`` and ``tile_row`` can no longer be assigned.
+  Reading ``actor.collision_rect`` gives back what was set. ``tone.play()``
+  and ``tone.create()`` take the waveform and volume with or without names.
 * Uses pygame-ce on Python 3.10 and newer, and supports Python 3.14 and 3.15.
 * The tone generator no longer needs pyfxr. Tones now last exactly as long as
   requested, and waveforms can be given by name, e.g.

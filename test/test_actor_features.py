@@ -225,7 +225,20 @@ class CollisionRectTest(ActorTestBase):
     def test_default_is_whole_image(self):
         a = Actor("alien")
         self.assertEqual((a.width, a.height), (ALIEN_W, ALIEN_H))
-        self.assertIs(a.collision_rect, a._rect)
+        self.assertIsNone(a.collision_rect)
+
+    def test_reading_gives_back_what_was_set(self):
+        a = Actor("alien", pos=(100, 100))
+        a.collision_rect = (20, 30)
+        self.assertEqual(a.collision_rect, (20, 30))
+        a.collision_rect = (20, 30, 5, -5)
+        self.assertEqual(a.collision_rect, (20, 30, 5, -5))
+
+    def test_setting_what_was_read_changes_nothing(self):
+        a = Actor("alien", pos=(100, 100), collision_rect=(20, 30, 5, -5))
+        before = (a.x, a.y, a.width, a.height)
+        a.collision_rect = a.collision_rect
+        self.assertEqual((a.x, a.y, a.width, a.height), before)
 
     def test_centered_body(self):
         a = Actor("alien", pos=(100, 100), collision_rect=(20, 30))

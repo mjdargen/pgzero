@@ -3,6 +3,7 @@ the game loop (``start()``, ``game.tick()`` and ``game.restart()``).
 
 """
 import builtins
+import io
 import types
 import unittest
 from unittest import mock
@@ -22,7 +23,7 @@ class GameDefaultsTest(unittest.TestCase):
         self.assertEqual(g.level, 1)
         self.assertEqual(g.timer, 0)
         self.assertEqual(g.frame_count, 0)
-        self.assertEqual(g.data, {})
+        self.assertFalse(hasattr(g, "data"))
 
     def test_reset(self):
         g = Game()
@@ -31,18 +32,18 @@ class GameDefaultsTest(unittest.TestCase):
         g.level = 5
         g.timer = 12.5
         g.frame_count = 99
-        g.data["lives"] = 3
         g.reset()
         self.assertEqual(
-            (g.state, g.score, g.level, g.timer, g.frame_count, g.data),
-            ("playing", 0, 1, 0, 0, {}),
+            (g.state, g.score, g.level, g.timer, g.frame_count),
+            ("playing", 0, 1, 0, 0),
         )
 
-    def test_reset_gives_fresh_data_dict(self):
+    def test_reset_keeps_custom_attributes(self):
+        """Values like game.lives belong to the game's own start() function."""
         g = Game()
-        old = g.data
+        g.lives = 3
         g.reset()
-        self.assertIsNot(g.data, old)
+        self.assertEqual(g.lives, 3)
 
     def test_custom_attributes(self):
         g = Game()
@@ -94,11 +95,9 @@ class GameStateTransitionTest(unittest.TestCase):
         g.resume()
         self.assertEqual(g.state, "won")
 
-    def test_start(self):
-        g = Game()
-        g.state = "over"
-        g.start()
-        self.assertEqual(g.state, "playing")
+    def test_no_start_method(self):
+        """game.start() was removed: start() is the game's own function."""
+        self.assertFalse(hasattr(Game(), "start"))
 
     def test_win_lose_over(self):
         for method, state in [("win", "won"), ("lose", "lost"),
@@ -304,12 +303,12 @@ class GameRestartTest(unittest.TestCase):
         g = self.game
 
         def start():
-            g.data["lives"] = 3
+            g.lives = 3
             g.score = 7
 
         g._bind_engine(start_callback=start, clock=self.clock)
         g.restart()
-        self.assertEqual(g.data, {"lives": 3})
+        self.assertEqual(g.lives, 3)
         self.assertEqual(g.score, 7)
 
 
@@ -378,6 +377,53 @@ class GameEndWithRestartTest(unittest.TestCase):
         self.assertEqual(g.state, "lost")
 
 
+class PauseFreezesClockTest(unittest.TestCase):
+    """While the game is paused, clock timers and animate() wait."""
+
+    def setUp(self):
+        self.game_obj = Game()
+        mod = types.ModuleType("fake_game")
+        mod.game = self.game_obj
+        self.pgz = PGZeroGame(mod)
+        patcher = mock.patch("pygame.event.get", return_value=[])
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.clock = Clock()
+        patcher = mock.patch("pgzero.clock.clock", self.clock)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.fired = []
+        self.clock.schedule(self.fire, 1.0)
+
+    def fire(self):
+        self.fired.append(True)
+
+    def test_timer_fires_while_playing(self):
+        self.pgz.handle_events(1.5, None)
+        self.assertEqual(self.fired, [True])
+
+    def test_timer_waits_while_paused(self):
+        self.game_obj.pause()
+        self.pgz.handle_events(1.5, None)
+        self.assertEqual(self.fired, [])
+
+    def test_timer_carries_on_after_resume(self):
+        self.pgz.handle_events(0.6, None)
+        self.game_obj.pause()
+        self.pgz.handle_events(5.0, None)  # paused for a long time
+        self.game_obj.resume()
+        self.pgz.handle_events(0.3, None)
+        self.assertEqual(self.fired, [])  # 0.9 seconds of play so far
+        self.pgz.handle_events(0.2, None)
+        self.assertEqual(self.fired, [True])
+
+    def test_timer_runs_after_the_game_ends(self):
+        """Only pausing stops the clock: e.g. lose(restart_after=3) still works."""
+        self.game_obj.lose(clear_clock="never")
+        self.pgz.handle_events(1.5, None)
+        self.assertEqual(self.fired, [True])
+
+
 class PGZeroGameHooksTest(unittest.TestCase):
     """Tests for how the game loop discovers start() and ticks ``game``."""
 
@@ -396,9 +442,24 @@ class PGZeroGameHooksTest(unittest.TestCase):
 
         self.assertIs(self.make(start=start).get_start_func(), start)
 
-    def test_get_start_func_not_callable(self):
-        with self.assertRaisesRegex(TypeError, "not callable"):
-            self.make(start=5).get_start_func()
+    def test_start_variable_that_is_not_a_function_is_ignored(self):
+        """A Pygame Zero game may use start for something else, like a position."""
+        self.assertIsNone(self.make(start=(100, 200)).get_start_func())
+
+    def test_start_function_with_parameters_is_not_called(self):
+        """A game's own start(level) helper must not be called with nothing."""
+        def start(level):
+            pass
+
+        with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            self.assertIsNone(self.make(start=start).get_start_func())
+        self.assertIn("start() needs an argument (level)", err.getvalue())
+
+    def test_start_function_with_default_parameters_is_called(self):
+        def start(level=1):
+            pass
+
+        self.assertIs(self.make(start=start).get_start_func(), start)
 
     def test_tick_game_state_uses_module_game(self):
         g = Game()
@@ -426,7 +487,23 @@ class PGZeroGameHooksTest(unittest.TestCase):
 
     def test_tick_game_state_with_user_variable_named_game(self):
         """A user variable called ``game`` with no tick() is left alone."""
-        self.assertFalse(self.make(game="pong").tick_game_state(0.1))
+        with mock.patch.object(builtins, "game", None, create=True):
+            self.assertFalse(self.make(game="pong").tick_game_state(0.1))
+
+    def test_user_object_named_game_with_tick_is_left_alone(self):
+        """A Pygame Zero game may have its own game object with a tick()."""
+        class MyGame:
+            ticks = 0
+
+            def tick(self):
+                self.ticks += 1
+
+        mine = MyGame()
+        builtin_game = Game()
+        with mock.patch.object(builtins, "game", builtin_game, create=True):
+            self.assertTrue(self.make(game=mine).tick_game_state(0.1))
+        self.assertEqual(mine.ticks, 0)
+        self.assertEqual(builtin_game.frame_count, 1)
 
     def test_handle_events_ticks_game(self):
         g = Game()

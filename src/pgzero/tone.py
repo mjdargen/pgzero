@@ -130,7 +130,7 @@ def _create(params):
     return snd
 
 
-def _convert_args(pitch, duration, *, waveform=Waveform.SIN, volume=0.8):
+def _convert_args(pitch, duration, waveform=Waveform.SIN, volume=0.8):
     """Convert the given arguments to _create parameters."""
     if duration > MAX_DURATION:
         raise ValueError(

@@ -1,5 +1,3 @@
-import copy
-
 import pygame
 import pygame.surfarray
 
@@ -162,8 +160,3 @@ class Sprite:
                     "visible frames."
                 )
         return images
-
-    def copy(self):
-        # Older versions needed a copy of a Sprite for each actor. Sprites can
-        # now be shared, but this is kept so that code still works.
-        return copy.copy(self)
