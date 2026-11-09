@@ -1615,8 +1615,8 @@ There are attributes for every key; some examples::
     keyboard.kp0  # The '0' key on the keypad
     keyboard.k_0  # The main '0' key
 
-The full set of key constants is given in the `Buttons and Keys`_
-documentation, but the attributes are lowercase, because these are variables
+The full set of key constants is given in the
+:ref:`Buttons and Keys <buttons-and-keys>` documentation, but the attributes are lowercase, because these are variables
 not constants.
 
 Uppercase and prefixed attribute names (eg. ``keyboard.LEFT`` or

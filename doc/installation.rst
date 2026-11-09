@@ -1,7 +1,8 @@
 Installing Pygame Zero Plus
 ===========================
 
-Pygame Zero Plus is installed from PyPI as ``pgzero-plus``. It provides the same
+Pygame Zero Plus needs Python 3.6 or newer. It is installed from PyPI as
+``pgzero-plus``. It provides the same
 ``pgzero`` package and ``pgzrun`` command as the original Pygame Zero, so
 **don't install both in the same Python environment**.
 

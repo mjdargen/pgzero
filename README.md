@@ -13,7 +13,9 @@ This fork adds features and quality-of-life improvements for introductory comput
 
 ## Installation
 
-The PyPI distribution is named `pgzero-plus`, but it provides the same `pgzero` Python package and `pgzrun` command as the original Pygame Zero. **Do not install both distributions in the same Python environment.**
+Pygame Zero Plus needs Python 3.6 or newer, on Windows, macOS or Linux.
+
+The PyPI distribution is named `pgzero-plus`, but it provides the same `pgzero` Python package and `pgzrun` command as the original Pygame Zero. **Do not install both distributions in the same Python environment.** If they are, or if both `pygame` and `pygame-ce` are installed, games print a warning with the commands to fix it.
 
 ### Install or Update
 
@@ -154,19 +156,19 @@ GitHub Actions runs pre-commit, the tests on every supported Python version, the
 
 Pushing a version tag triggers the release workflow, which tests, builds, publishes to PyPI, and creates a GitHub Release.
 
-**1. Update the version** in `pyproject.toml`:
+**1. Update the version** in `pyproject.toml`, and its heading in `doc/changelog.rst`. Use [semantic versioning](https://semver.org): from 1.0.0 on, a release that changes or removes anything students use needs a new major version (2.0.0).
 
 ```toml
-version = "0.1.0a2"
+version = "1.0.0"
 ```
 
-**2. Commit and push changes:**
+**2. Commit, and get the changes onto `main`.** Work on a branch and merge it once Code Checks passes on it, or commit to `main` directly:
 
 ```bash
 git switch main
 git status
 git add .
-git commit -m "Prepare v0.1.0a2"
+git commit -m "Prepare v1.0.0"
 git push origin main
 ```
 
@@ -175,8 +177,8 @@ git push origin main
 **4. Create and push the release tag:**
 
 ```bash
-git tag -a v0.1.0a2 -m "Release v0.1.0a2"
-git push origin v0.1.0a2
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin v1.0.0
 ```
 
 **5. Verify publication:**

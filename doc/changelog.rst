@@ -4,8 +4,11 @@ Changelog
 Pygame Zero Plus
 ----------------
 
-0.1.0 - Initial release
-~~~~~~~~~~~~~~~~~~~~~~~
+1.0.0 - First stable release
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+From this release on, games written for Pygame Zero Plus keep working with
+every 1.x release.
 
 * Enhanced Actors with scaling, flipping, and custom collision rectangles.
 * Added ``actor.move_toward(target, speed)``, e.g. to make an enemy chase the
@@ -81,7 +84,12 @@ Pygame Zero Plus
   ``map_row``, ``tile_col`` and ``tile_row`` can no longer be assigned.
   Reading ``actor.collision_rect`` gives back what was set. ``tone.play()``
   and ``tone.create()`` take the waveform and volume with or without names.
-* Uses pygame-ce on Python 3.10 and newer, and supports Python 3.14 and 3.15.
+* Uses pygame-ce on Python 3.10 and newer, and supports Python 3.6 to 3.15.
+* Games print a warning, with the commands to fix it, if both ``pygame`` and
+  ``pygame-ce``, or both ``pgzero`` and ``pgzero-plus``, are installed.
+* The check that image, sound and other file names are lowercase now works the
+  same on Windows, macOS and Linux, so a file that only loads on one of them
+  is caught on all of them. It no longer needs pywin32.
 * The tone generator no longer needs pyfxr. Tones now last exactly as long as
   requested, and waveforms can be given by name, e.g.
   ``tone.play('C4', 1, waveform='square')``.

@@ -32,20 +32,33 @@ class InvalidCase(Exception):
     """Indicate case errors early so they don't bite cross-platform users."""
 
 
-try:
-    import win32api
-except ImportError:
+def real_relpath(relpath, start=None):
+    """Return relpath, below the folder start, with each part capitalised the
+    way it really is on disk.
 
-    def real_path(path):
-        return path
-
-else:
-
-    def real_path(path):
-        """Get the real capitalisation of a path on Windows."""
-        if not os.path.exists(path):
-            return path
-        return win32api.GetLongPathNameW(win32api.GetShortPathName(path))
+    Windows and macOS don't care about capitalisation, so a game can load
+    'alien' from Alien.PNG there and then fail on Linux (e.g. Codio). Reading
+    the names in each folder works the same on every operating system, and
+    only looks at the part of the path below the game's own folder.
+    """
+    current = root if start is None else start
+    real_parts = []
+    for part in os.path.normpath(relpath).split(os.sep):
+        if part in ("", os.curdir, os.pardir):
+            real_parts.append(part)
+            current = os.path.join(current, part)
+            continue
+        try:
+            names = os.listdir(current)
+        except OSError:
+            return relpath  # can't look inside this folder, so can't check
+        if part not in names:
+            matches = [name for name in names if name.lower() == part.lower()]
+            if matches:
+                part = matches[0]
+        real_parts.append(part)
+        current = os.path.join(current, part)
+    return os.path.join(*real_parts) if real_parts else relpath
 
 
 def validate_lowercase(relpath):
@@ -61,11 +74,10 @@ def validate_lowercase(relpath):
 
 def validate_compatible_path(path):
     """Validate that the given path can be loaded cross-platform."""
-    relpath = os.path.relpath(path, root)
+    relpath = os.path.normpath(os.path.relpath(path, root))
     validate_lowercase(relpath)
 
-    real = real_path(os.path.join(root, relpath))
-    real_rel = os.path.relpath(real, root)
+    real_rel = real_relpath(relpath)
 
     if real_rel != relpath:
         raise InvalidCase(

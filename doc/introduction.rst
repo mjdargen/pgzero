@@ -91,7 +91,7 @@ If you've done that, your project should look like this:
 ``images/`` is the standard directory that Pygame Zero will look in to find
 your images.
 
-There's a built-in class called :class:`Actor` that you can use to represent a
+There's a built-in class called :ref:`Actor <actor>` that you can use to represent a
 graphic to be drawn to the screen.
 
 Let's define one now. Change the ``intro.py`` file to read::

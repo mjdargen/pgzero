@@ -24,9 +24,13 @@ except ImportError:
     # Python 3.6 and 3.7
     from importlib_metadata import PackageNotFoundError, version
 
+from ._install_check import warn_about_clashing_installs
+
 try:
     __version__ = version("pgzero-plus")
 except PackageNotFoundError:
     __version__ = "unknown"
+
+warn_about_clashing_installs()
 
 __all__ = ["__version__"]
