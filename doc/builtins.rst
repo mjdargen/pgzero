@@ -1170,7 +1170,11 @@ every tile of the same kind shares one image.
     Actor, so you can draw it, move it and check it for collisions.
 
     :param scale: Draw the map bigger or smaller. ``2`` makes every tile, and
-                  the space between them, twice the size.
+                  the space between them, twice the size, and ``0.5`` half the
+                  size. Tiles are rounded to whole pixels so that they meet
+                  without gaps: 16 pixel tiles with ``scale=1.3`` are 21
+                  pixels. Pixel art looks sharpest with whole numbers or
+                  halves, like ``2`` or ``1.5``.
 
 For example, with a map that has layers called ``ground``, ``walls`` and
 ``coins``::
@@ -1336,7 +1340,8 @@ marking where the walls are.
     .. attribute:: tile_width
                    tile_height
 
-        The size of one square on the screen, in pixels, after ``scale``.
+        The size of one square on the screen, in whole pixels, after
+        ``scale``.
 
     .. method:: draw()
 
