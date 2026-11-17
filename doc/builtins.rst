@@ -1289,6 +1289,37 @@ Anything drawn at a fixed place on the screen, such as a score with
 and the actors you give it.
 
 
+Turning the map
+'''''''''''''''
+
+``level.rotate(90, around=player)`` turns the whole map a quarter turn around
+the player, counterclockwise like an Actor's ``angle``. Use ``180`` for a half
+turn, or ``-90`` to turn clockwise. Only quarter turns work, because tiles
+collide as rectangles with straight sides.
+
+The player stays where it is and stays upright, so gravity now pulls it towards
+another side of the map: floors become walls and walls become floors. Give
+``rotate()`` the other actors in the world that aren't part of the map, such
+as enemies, as a list, like ``follow()``. They're carried round with the map,
+and stay upright too::
+
+    def on_key_down(key):
+        if key == keys.Q:
+            level.rotate(90, around=player, others=enemies)
+        elif key == keys.E:
+            level.rotate(-90, around=player, others=enemies)
+
+After turning, ``follow()``, ``pos_to_map()``, ``map_to_pos()``,
+``set_tile()`` and collisions all keep working, and ``level.angle`` says how
+far the map has been turned. A tile's ``flip_h``, ``flip_v`` and ``flip_d``
+are still the flips set in Tiled; the map's turn is added on top when it's
+drawn.
+
+The player doesn't turn, so in a narrow space a player that's taller than it
+is wide can end up overlapping a wall after a turn. Check with
+``player.collidelist(walls)`` after turning, and turn back if it does.
+
+
 Properties
 ''''''''''
 
@@ -1326,7 +1357,14 @@ marking where the walls are.
     .. attribute:: x
                    y
 
-        Where the map is on the screen. Change these to scroll the map.
+        Where the map is on the screen: the corner of square ``(0, 0)``.
+        Change these to scroll the map.
+
+    .. attribute:: angle
+
+        How far the map has been turned with ``rotate()``, counterclockwise
+        in degrees: ``0``, ``90``, ``180`` or ``270``. It can be read but not
+        assigned.
 
     .. attribute:: cols
                    rows
@@ -1358,6 +1396,15 @@ marking where the walls are.
         ``others`` move with the map, so they stay in the same place in the
         world. Call it in ``update()`` after moving the actor. Returns how far
         everything moved, as ``x, y``.
+
+    .. method:: rotate(angle, around=None, others=[])
+
+        Turn the whole map by ``angle`` degrees, counterclockwise like
+        ``Actor.angle``. ``angle`` must be a quarter turn, such as ``90``,
+        ``180`` or ``-90``. ``around`` is an Actor, which stays where it is,
+        or an ``(x, y)`` position; leave it out to turn around the middle of
+        the screen. Every Actor in the list ``others`` is carried round with
+        the map but isn't turned itself.
 
     .. method:: create_tile(tile_col, tile_row, tileset=None)
 

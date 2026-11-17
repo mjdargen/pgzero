@@ -9,6 +9,12 @@ Unreleased
 
 * Type checkers such as Pylance no longer flag a decimal ``scale`` like
   ``1.5`` in ``load_tile_map()``.
+* Added ``level.rotate(angle, around=player, others=enemies)``, which turns a
+  tile map a quarter turn around the player, who stays upright, and
+  ``level.angle``. Collisions, ``follow()``, ``pos_to_map()``,
+  ``map_to_pos()`` and ``set_tile()`` keep working on a turned map.
+* Flipped tiles share their flipped images, like unflipped tiles already did,
+  so big maps with many flipped or turned tiles use less memory.
 
 1.0.0 - First stable release
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

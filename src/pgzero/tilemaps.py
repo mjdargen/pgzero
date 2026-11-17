@@ -8,7 +8,7 @@ import pygame
 import xml.etree.ElementTree as ET
 
 from . import loaders
-from .actor import Actor
+from .actor import Actor, _set_angle, _set_flip, _set_opacity, _set_scale
 
 FLIP_H = 0x80000000
 FLIP_V = 0x40000000
@@ -16,6 +16,68 @@ FLIP_D = 0x20000000
 GID_MASK = 0x0FFFFFFF
 
 _NO_PROPERTIES = types.MappingProxyType({})
+
+
+# A square tile's image can face 8 ways. Tiled saves which one with three
+# flips, applied the way Actor applies them: flip_d first, then flip_h and
+# flip_v. Turning the map a quarter turn makes each tile face another of the
+# 8 ways, so the map's angle and the tile's own flips combine into one set of
+# flips, and turned tiles are drawn and collide exactly like flipped ones.
+
+
+def _turn(x, y, angle):
+    """Turn the point (x, y) about (0, 0) by angle degrees, counterclockwise
+    on the screen like Actor.angle. angle is a multiple of 90, so swapping
+    and negating gives the exact answer, with no rounding from sin and cos."""
+    for _ in range(int(angle) // 90 % 4):
+        x, y = y, -x
+    return x, y
+
+
+def _flip_matrix(flip_h, flip_v, flip_d):
+    """Where the flips move a point (x, y) of a tile's image, as (a, b, c, d)
+    meaning it goes to (a*x + b*y, c*x + d*y)."""
+    a, b, c, d = 1, 0, 0, 1
+    if flip_d:  # swap x and y
+        a, b, c, d = c, d, a, b
+    if flip_h:
+        a, b = -a, -b
+    if flip_v:
+        c, d = -c, -d
+    return a, b, c, d
+
+
+_FLIPS_FOR_MATRIX = {
+    _flip_matrix(flip_h, flip_v, flip_d): (flip_h, flip_v, flip_d)
+    for flip_h in (False, True)
+    for flip_v in (False, True)
+    for flip_d in (False, True)
+}
+
+
+def _combine_flips(angle, flip_h, flip_v, flip_d):
+    """The flips that show a tile with these flips on a map turned by angle."""
+    a, b, c, d = _flip_matrix(flip_h, flip_v, flip_d)
+    # Turn where the flips sent the x and y directions.
+    a, c = _turn(a, c, angle)
+    b, d = _turn(b, d, angle)
+    return _FLIPS_FOR_MATRIX[(a, b, c, d)]
+
+
+def _set_tile_flip(tile, current_surface):
+    """Like Actor's flip step, but every tile of the same kind, size and
+    flips shares one flipped image, so turning a big map doesn't make a copy
+    of the image for every tile."""
+    if not (tile._flip_h or tile._flip_v or tile._flip_d):
+        return current_surface
+    if current_surface is not tile._orig_surf:
+        # Changed by an earlier step, like opacity, so it can't be shared.
+        return _set_flip(tile, current_surface)
+    key = tile._surface_key + (tile._flip_h, tile._flip_v, tile._flip_d)
+    surfaces = tile._tileset.setdefault("surfaces", {})
+    if key not in surfaces:
+        surfaces[key] = _set_flip(tile, current_surface)
+    return surfaces[key]
 
 
 def _get_tile_surface(tileset, tile_col, tile_row, width, height):
@@ -101,6 +163,9 @@ class Tile(Actor):
     tile_gid = _read_only("tile_gid", _IMAGE_ADVICE)
     tileset_firstgid = _read_only("tileset_firstgid", _IMAGE_ADVICE)
 
+    # Flipped tiles share their flipped images (see _set_tile_flip).
+    function_order = [_set_opacity, _set_scale, _set_tile_flip, _set_angle]
+
     def __init__(
         self,
         tileset,
@@ -116,6 +181,7 @@ class Tile(Actor):
         flip_v=False,
         flip_d=False,
         layer=None,
+        map_angle=0,
     ):
         self._tileset = tileset
         self._layer = layer
@@ -123,17 +189,19 @@ class Tile(Actor):
         self._map_tile_width = map_tile_width
         self._map_tile_height = map_tile_height
         self._map_scale = max(0.0, scale)
+        # The flips set in Tiled, which flip_h, flip_v and flip_d show. The
+        # tile is drawn with these combined with the map's angle.
+        self._tiled_flip_h = bool(flip_h)
+        self._tiled_flip_v = bool(flip_v)
+        self._tiled_flip_d = bool(flip_d)
+        self._map_angle = map_angle
 
         super().__init__(self._tile_surface(tile_col, tile_row))
 
-        # Setting a flip redoes the tile's position and image, so only set the
-        # flips that are used; most tiles in a map have none.
-        if flip_h:
-            self.flip_h = flip_h
-        if flip_v:
-            self.flip_v = flip_v
-        if flip_d:
-            self.flip_d = flip_d
+        # Changing the flips redoes the tile's position and image, so skip it
+        # for the many tiles that have none.
+        if flip_h or flip_v or flip_d or map_angle:
+            self._orient()
 
         self._place(map_col, map_row)
 
@@ -152,6 +220,52 @@ class Tile(Actor):
         # tile uses the shared image for its kind of tile at the new size.
         self._map_scale = max(0.0, scale)
         self._set_image(self._tile_surface(self.tile_col, self.tile_row))
+
+    # flip_h, flip_v and flip_d are the flips set in Tiled (or by the game),
+    # even after the map has been turned. Actor's own _flip_h, _flip_v and
+    # _flip_d hold those combined with the map's angle, which is how the tile
+    # is drawn.
+
+    @property
+    def flip_h(self):
+        return self._tiled_flip_h
+
+    @flip_h.setter
+    def flip_h(self, value):
+        self._tiled_flip_h = bool(value)
+        self._orient()
+
+    @property
+    def flip_v(self):
+        return self._tiled_flip_v
+
+    @flip_v.setter
+    def flip_v(self, value):
+        self._tiled_flip_v = bool(value)
+        self._orient()
+
+    @property
+    def flip_d(self):
+        return self._tiled_flip_d
+
+    @flip_d.setter
+    def flip_d(self, value):
+        self._tiled_flip_d = bool(value)
+        self._orient()
+
+    def _orient(self):
+        """Draw the tile with its flips combined with the map's angle."""
+        self._flip_h, self._flip_v, self._flip_d = _combine_flips(
+            self._map_angle, self._tiled_flip_h, self._tiled_flip_v, self._tiled_flip_d
+        )
+        self._update_pos()
+        self._update_transform(_set_tile_flip)
+
+    def _set_map_angle(self, angle):
+        """Face the way the tiles of a map turned by angle face."""
+        if angle != self._map_angle:
+            self._map_angle = angle
+            self._orient()
 
     @property
     def properties(self):
@@ -186,13 +300,14 @@ class Tile(Actor):
         self._tile_id = tile_id
         self._tile_gid = self._tileset_firstgid + tile_id
 
-        return _get_tile_surface(
-            self._tileset,
+        # Which shared image this is, for _get_tile_surface and _set_tile_flip.
+        self._surface_key = (
             tile_col,
             tile_row,
             max(1, round(self._map_tile_width * self._map_scale)),
             max(1, round(self._map_tile_height * self._map_scale)),
         )
+        return _get_tile_surface(self._tileset, *self._surface_key)
 
     def _place(self, map_col, map_row):
         """Record the tile's square and put it there on the screen."""
@@ -201,15 +316,11 @@ class Tile(Actor):
 
         if self._layer is not None:
             # Use the map's grid, even if this one tile has been scaled.
-            tile_map = self._layer._map
-            origin_x, origin_y = tile_map.x, tile_map.y
-            width, height = tile_map.tile_width, tile_map.tile_height
+            self.topleft = self._layer._map._square_topleft(map_col, map_row)
         else:
-            origin_x = origin_y = 0
             width = self._map_tile_width * self.scale
             height = self._map_tile_height * self.scale
-
-        self.topleft = (origin_x + width * map_col, origin_y + height * map_row)
+            self.topleft = (width * map_col, height * map_row)
 
     def copy(self, map_col=None, map_row=None):
         """Return a new tile like this one that isn't in any layer."""
@@ -232,6 +343,7 @@ class Tile(Actor):
             flip_h=self.flip_h,
             flip_v=self.flip_v,
             flip_d=self.flip_d,
+            map_angle=self._map_angle,
         )
 
 
@@ -375,6 +487,7 @@ class TileLayer(Sequence):
             old_tile._layer = None
 
         tile._layer = self
+        tile._set_map_angle(self._map._angle)
         tile._place(col, row)
         self._tiles[(col, row)] = tile
 
@@ -409,8 +522,12 @@ class TileMap(Mapping):
         self._rows = rows
         self._map_tile_width = map_tile_width
         self._map_tile_height = map_tile_height
+        # Where the map's top left corner, the corner of square (0, 0), is on
+        # the screen, and how far the map has been turned. A point in the map
+        # is on the screen at (_x, _y) + _turn(its x and y in the map, _angle).
         self._x = 0
         self._y = 0
+        self._angle = 0
 
     def __repr__(self):
         return "<TileMap {!r} with layers {}>".format(self._name, list(self._layers))
@@ -471,7 +588,8 @@ class TileMap(Mapping):
 
     @property
     def x(self):
-        """How far the map has been scrolled right, in pixels."""
+        """How far the map has been scrolled right, in pixels: the x of the
+        corner of square (0, 0) on the screen."""
         return self._x
 
     @x.setter
@@ -480,12 +598,39 @@ class TileMap(Mapping):
 
     @property
     def y(self):
-        """How far the map has been scrolled down, in pixels."""
+        """How far the map has been scrolled down, in pixels: the y of the
+        corner of square (0, 0) on the screen."""
         return self._y
 
     @y.setter
     def y(self, y):
         self._scroll(0, y - self._y)
+
+    @property
+    def angle(self):
+        """How far the map has been turned with rotate(), counterclockwise in
+        degrees: 0, 90, 180 or 270."""
+        return self._angle
+
+    @angle.setter
+    def angle(self, angle):
+        raise AttributeError(
+            "A map's angle can't be set directly. To turn the map, use "
+            "level.rotate(90, around=player), which also says what to turn it around."
+        )
+
+    def _to_screen(self, x, y):
+        """The screen position of the point x, y pixels from the map's corner,
+        before turning."""
+        tx, ty = _turn(x, y, self._angle)
+        return self._x + tx, self._y + ty
+
+    def _square_topleft(self, col, row):
+        """The top left corner on the screen of the square at col, row."""
+        w, h = self.tile_width, self.tile_height
+        x1, y1 = self._to_screen(col * w, row * h)
+        x2, y2 = self._to_screen((col + 1) * w, (row + 1) * h)
+        return min(x1, x2), min(y1, y2)
 
     def _scroll(self, dx, dy):
         """Move the whole map by dx, dy pixels, in one pass over its tiles."""
@@ -505,18 +650,17 @@ class TileMap(Mapping):
             )
         _check_number("x", x)
         _check_number("y", y)
+        # Turn the position back to how it would be on the unturned map.
+        map_x, map_y = _turn(x - self._x, y - self._y, -self._angle)
         return (
-            math.floor((x - self._x) / self.tile_width),
-            math.floor((y - self._y) / self.tile_height),
+            math.floor(map_x / self.tile_width),
+            math.floor(map_y / self.tile_height),
         )
 
     def map_to_pos(self, col, row):
         """Return the x and y, in pixels, of the center of the square at col, row."""
         col, row = _check_col_row(col, row)
-        return (
-            self._x + (col + 0.5) * self.tile_width,
-            self._y + (row + 0.5) * self.tile_height,
-        )
+        return self._to_screen((col + 0.5) * self.tile_width, (row + 0.5) * self.tile_height)
 
     def follow(self, actor, others=()):
         """Scroll the map so that actor is in the middle of the screen.
@@ -539,8 +683,11 @@ class TileMap(Mapping):
             others = [others]
 
         screen_width, screen_height = game.screen.get_size()
-        dx = self._follow_shift(actor.x, self._x, self._cols * self.tile_width, screen_width)
-        dy = self._follow_shift(actor.y, self._y, self._rows * self.tile_height, screen_height)
+        # The map's edges on the screen, which are swapped round once it's turned
+        x1, y1 = self._to_screen(0, 0)
+        x2, y2 = self._to_screen(self._cols * self.tile_width, self._rows * self.tile_height)
+        dx = self._follow_shift(actor.x, min(x1, x2), abs(x2 - x1), screen_width)
+        dy = self._follow_shift(actor.y, min(y1, y2), abs(y2 - y1), screen_height)
 
         if dx or dy:
             self._scroll(dx, dy)
@@ -560,6 +707,76 @@ class TileMap(Mapping):
         shift = min(shift, -map_pos)  # the map's left/top edge can't come onto the screen
         shift = max(shift, screen_size - (map_pos + map_size))  # nor its right/bottom edge
         return shift
+
+    def rotate(self, angle, around=None, others=()):
+        """Turn the whole map by angle degrees, counterclockwise like
+        Actor.angle. angle must be a quarter turn: 90, 180, 270, or -90 to
+        turn clockwise.
+
+        around is what to turn it around: an Actor (the map turns around its
+        pos, so it stays where it is) or an (x, y) position. Leave it out to
+        turn around the middle of the screen.
+
+        Every Actor in the list others is carried round with the map, so it
+        stays in the same place in the world, but it isn't turned itself: it
+        stays upright, so gravity pulls it towards the map's new down.
+        """
+        if isinstance(angle, bool) or not isinstance(angle, numbers.Real):
+            raise TypeError(f"angle should be a number of degrees, like 90 or -90, not {angle!r}.")
+        if angle % 90:
+            raise ValueError(
+                f"A map can only turn in quarter turns, like 90, 180 or -90, not {angle!r}. "
+                "Its tiles collide as rectangles with straight sides, which only works "
+                "when they're turned in quarter turns."
+            )
+        angle = int(angle) % 360
+        center_x, center_y = self._pivot(around)
+        if isinstance(others, Actor):
+            others = [others]
+
+        def turn_point(x, y):
+            tx, ty = _turn(x - center_x, y - center_y, angle)
+            return center_x + tx, center_y + ty
+
+        if angle:
+            self._angle = (self._angle + angle) % 360
+            self._x, self._y = turn_point(self._x, self._y)
+            for layer in self._layers.values():
+                for tile in layer._tiles.values():
+                    # Turn where the tile is, rather than putting it back in
+                    # its square, so tiles the game has moved stay moved.
+                    tile._set_map_angle(self._angle)
+                    tile.center = turn_point(*tile.center)
+            for thing in others:
+                # A layer of this map given by mistake has already been turned.
+                if isinstance(thing, Tile) and thing._layer is not None and thing._layer._map is self:
+                    continue
+                thing.pos = turn_point(*thing.pos)
+
+    def _pivot(self, around):
+        """The point that rotate() turns the map around."""
+        if around is None:
+            from . import game
+
+            if game.screen is None:
+                raise RuntimeError(
+                    "level.rotate() turns the map around the middle of the game window, so "
+                    "call it in start() or update(), or say what to turn it around, like "
+                    "level.rotate(90, around=player)."
+                )
+            width, height = game.screen.get_size()
+            return width / 2, height / 2
+        if isinstance(around, Actor):
+            return around.pos
+        try:
+            x, y = around
+        except (TypeError, ValueError):
+            raise TypeError(
+                f"around should be an Actor or an (x, y) position, not {around!r}."
+            ) from None
+        _check_number("x", x)
+        _check_number("y", y)
+        return x, y
 
     def draw(self):
         """Draw every visible layer, in order."""
@@ -622,6 +839,7 @@ class TileMap(Mapping):
             flip_v=flip_v,
             flip_d=flip_d,
             layer=layer,
+            map_angle=self._angle,
         )
 
 

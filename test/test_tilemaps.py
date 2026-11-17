@@ -34,6 +34,7 @@ from pgzero.tilemaps import (
     _count_tiles_that_fit,
     _load_tilesets,
     _resolve_relative_map_path,
+    _turn,
     load_tile_map_actors,
 )
 
@@ -1117,6 +1118,207 @@ class DrawTest(TilemapTestBase):
         with mock.patch.object(TileLayer, "draw", autospec=True) as draw:
             self.level.draw()
         self.assertEqual([call[0][0] for call in draw.call_args_list], self.level.layers)
+
+
+def same_pixels(a, b):
+    return a.get_size() == b.get_size() and pygame.image.tobytes(a, "RGBA") == pygame.image.tobytes(b, "RGBA")
+
+
+class RotateTest(TilemapTestBase):
+    """level.rotate(): the 4 x 2 ground layer of 16 x 16 squares, turned
+    around (0, 0) unless a test says otherwise. Turning counterclockwise by
+    90 moves a point (x, y) to (y, -x)."""
+
+    def setUp(self):
+        self.level = load_tile_map("level")
+        self.ground = self.level["ground"]
+
+    def images(self):
+        return {map_pos(t): t._build_transformed_surf() for t in self.ground}
+
+    def test_angle(self):
+        self.assertEqual(self.level.angle, 0)
+        for turn, angle in [(90, 90), (90, 180), (180, 0), (-90, 270), (450, 0), (90.0, 90)]:
+            self.level.rotate(turn, around=(0, 0))
+            self.assertEqual(self.level.angle, angle)
+            self.assertIsInstance(self.level.angle, int)
+
+    def test_angle_cannot_be_set(self):
+        with self.assertRaisesRegex(AttributeError, r"level.rotate\(90"):
+            self.level.angle = 90
+
+    def test_tiles_turn_around_a_point(self):
+        self.level.rotate(90, around=(0, 0))
+        self.assertEqual(self.ground.get_tile(0, 0).center, (8, -8))
+        self.assertEqual(self.ground.get_tile(3, 1).center, (24, -56))
+        self.level.rotate(90, around=(100, 50))
+        # (8, -8) is (-92, -58) from (100, 50), which turns to (-58, 92)
+        self.assertEqual(self.ground.get_tile(0, 0).center, (42, 142))
+
+    def test_tile_images_turn(self):
+        """Every tile, flipped in Tiled or not, looks like its image turned."""
+        before = self.images()
+        for angle in [90, 180, 270]:
+            level = load_tile_map("level")
+            level.rotate(angle, around=(0, 0))
+            for tile in level["ground"]:
+                expected = pygame.transform.rotate(before[map_pos(tile)], angle)
+                self.assertTrue(same_pixels(tile._build_transformed_surf(), expected), (angle, map_pos(tile)))
+
+    def test_tiles_keep_their_tiled_flips(self):
+        flips = {map_pos(t): (t.flip_h, t.flip_v, t.flip_d) for t in self.ground}
+        self.level.rotate(90, around=(0, 0))
+        self.assertEqual({map_pos(t): (t.flip_h, t.flip_v, t.flip_d) for t in self.ground}, flips)
+
+    def test_flipping_a_turned_tile(self):
+        unturned = self.ground.get_tile(0, 0).copy()
+        unturned.flip_h = True
+        tile = self.ground.get_tile(0, 0)
+        self.level.rotate(90, around=(0, 0))
+        tile.flip_h = True
+        self.assertTrue(tile.flip_h)
+        expected = pygame.transform.rotate(unturned._build_transformed_surf(), 90)
+        self.assertTrue(same_pixels(tile._build_transformed_surf(), expected))
+
+    def test_turned_tiles_share_images(self):
+        tile = self.level.create_tile(1, 1, tileset="tiles")
+        other = self.level.create_tile(1, 1, tileset="tiles")
+        self.ground.set_tile(1, 0, tile)
+        self.ground.set_tile(0, 0, other)
+        self.level.rotate(90, around=(0, 0))
+        self.assertIs(tile._build_transformed_surf(), other._build_transformed_surf())
+
+    def test_flipped_tiles_share_images(self):
+        flipped = self.ground.get_tile(0, 1)  # flipped horizontally in Tiled
+        other = self.ground.set_tile(1, 0, flipped.copy())
+        self.assertIs(other._build_transformed_surf(), flipped._build_transformed_surf())
+
+    def test_turning_all_the_way_round(self):
+        topleft = {map_pos(t): t.topleft for t in self.ground}
+        images = self.images()
+        for _ in range(4):
+            self.level.rotate(90, around=(30, 7))
+        self.assertEqual({map_pos(t): t.topleft for t in self.ground}, topleft)
+        for tile in self.ground:
+            self.assertTrue(same_pixels(tile._build_transformed_surf(), images[map_pos(tile)]))
+
+    def test_squares_and_positions_after_turning(self):
+        for angle in [90, 180, 270]:
+            level = load_tile_map("level")
+            level.x, level.y = 13, -4
+            level.rotate(angle, around=(20, 30))
+            for tile in level["ground"]:
+                col, row = map_pos(tile)
+                self.assertEqual(level.map_to_pos(col, row), tile.pos, (angle, col, row))
+                self.assertEqual(level.pos_to_map(*tile.pos), (col, row), (angle, col, row))
+
+    def test_collisions_after_turning(self):
+        self.level.rotate(90, around=(0, 0))
+        player = Actor(pygame.Surface((4, 4)), center=(8, -40))  # where square (2, 0) is now
+        self.assertEqual(map_pos(self.ground[player.collidelist(self.ground)]), (2, 0))
+
+    def test_actor_turned_around_stays_put(self):
+        player = Actor(pygame.Surface((4, 6)), center=(40, 10))  # in square (2, 0)
+        self.level.rotate(90, around=player)
+        self.assertEqual(player.pos, (40, 10))
+        self.assertEqual(self.level.pos_to_map(player.x, player.y), (2, 0))
+
+    def test_others_are_carried_round_but_not_turned(self):
+        enemy = Actor(pygame.Surface((4, 6)), center=(40, 10))
+        self.level.rotate(90, around=(0, 0), others=[enemy])
+        self.assertEqual(enemy.pos, (10, -40))
+        self.assertEqual((enemy.width, enemy.height, enemy.angle), (4, 6, 0))
+        self.level.rotate(-90, around=(0, 0), others=enemy)  # one Actor is fine too
+        self.assertEqual(enemy.pos, (40, 10))
+
+    def test_a_layer_in_others_isnt_turned_twice(self):
+        self.level.rotate(90, around=(0, 0), others=self.ground)
+        self.assertEqual(self.ground.get_tile(0, 0).center, (8, -8))
+
+    def test_collision_rect_turns_with_the_tile(self):
+        """A tile with an off-center collision_rect: its rect and its image
+        both end up where turning them would put them."""
+
+        def turned_box(x, y, w, h):
+            corners = [_turn(cx, cy, 90) for cx, cy in [(x, y), (x + w, y + h)]]
+            return (min(c[0] for c in corners), min(c[1] for c in corners), h, w)
+
+        tile = self.ground.get_tile(0, 0)
+        tile.collision_rect = (4, 8, 2, 3)
+        body = tuple(tile._rect)
+        image = (*tile._image_topleft(), 16, 16)
+        self.level.rotate(90, around=(0, 0))
+        self.assertEqual(tuple(tile._rect), turned_box(*body))
+        self.assertEqual((*tile._image_topleft(), 16, 16), turned_box(*image))
+
+    def test_tiles_moved_by_the_game_stay_moved(self):
+        tile = self.ground.get_tile(0, 0)
+        tile.y -= 3  # e.g. a bouncing block
+        self.level.rotate(90, around=(0, 0))
+        self.assertEqual(tile.center, (5, -8))
+
+    def test_new_tiles_on_a_turned_map(self):
+        self.level.rotate(90, around=(0, 0))
+        tile = self.ground.set_tile(1, 0, self.level.create_tile(0, 0, tileset="tiles"))
+        self.assertEqual(tile.pos, self.level.map_to_pos(1, 0))
+        expected = pygame.transform.rotate(self.images()[0, 0], 0)  # (0, 0) is the same kind, turned too
+        self.assertTrue(same_pixels(tile._build_transformed_surf(), expected))
+
+    def test_tile_taken_off_and_put_back(self):
+        tile = self.ground.pop(0)
+        self.level.rotate(90, around=(0, 0))
+        self.ground.set_tile(0, 0, tile)
+        self.assertEqual(tile.pos, self.level.map_to_pos(0, 0))
+        self.assertTrue(same_pixels(tile._build_transformed_surf(), self.ground.get_tile(0, 0)._build_transformed_surf()))
+
+    def test_scrolling_after_turning(self):
+        self.level.rotate(90, around=(0, 0))
+        topleft = {map_pos(t): t.topleft for t in self.ground}
+        self.level.x += 10
+        for tile in self.ground:
+            x, y = topleft[map_pos(tile)]
+            self.assertEqual(tile.topleft, (x + 10, y))
+
+    def test_follow_after_turning(self):
+        """Turned, the map is 32 wide and 64 tall on a 32 x 16 screen."""
+        self.level.rotate(90, around=(0, 0))
+        player = Actor(pygame.Surface((4, 4)), pos=self.level.map_to_pos(0, 0))
+        with mock.patch("pgzero.game.screen", pygame.Surface((32, 16))):
+            self.level.follow(player)
+        left = min(t.left for t in self.ground)
+        top = min(t.top for t in self.ground)
+        right = max(t.right for t in self.ground)
+        bottom = max(t.bottom for t in self.ground)
+        self.assertEqual((left, right), (0, 32))  # as wide as the screen, so it fits exactly
+        self.assertEqual(bottom, 16)  # square (0, 0) is at the bottom, so the map stops there
+        self.assertEqual(top, -48)
+        self.assertEqual(player.pos, self.level.map_to_pos(0, 0))
+
+    def test_turns_around_the_middle_of_the_screen(self):
+        with mock.patch("pgzero.game.screen", pygame.Surface((200, 100))):
+            self.level.rotate(180)
+        # (8, 8) is (-92, -42) from (100, 50), which turns to (92, 42)
+        self.assertEqual(self.ground.get_tile(0, 0).center, (192, 92))
+
+    def test_middle_of_the_screen_needs_the_game_window(self):
+        with mock.patch("pgzero.game.screen", None):
+            with self.assertRaisesRegex(RuntimeError, "around=player"):
+                self.level.rotate(90)
+
+    def test_only_quarter_turns(self):
+        for angle in [45, 1, 90.5]:
+            with self.assertRaisesRegex(ValueError, "quarter turns"):
+                self.level.rotate(angle, around=(0, 0))
+        for angle in ["90", True, None]:
+            with self.assertRaisesRegex(TypeError, "angle should be a number"):
+                self.level.rotate(angle, around=(0, 0))
+        self.assertEqual(self.level.angle, 0)
+
+    def test_bad_around(self):
+        for around in ["player", 5, (1, 2, 3), ("a", 2)]:
+            with self.assertRaises(TypeError):
+                self.level.rotate(90, around=around)
+        self.assertEqual(self.level.angle, 0)
 
 
 PROPERTIES_XML = """
