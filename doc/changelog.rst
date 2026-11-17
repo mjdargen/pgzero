@@ -7,10 +7,8 @@ Pygame Zero Plus
 Unreleased
 ~~~~~~~~~~
 
-* ``load_tile_map()`` works with a decimal ``scale`` like ``1.5``, and type
-  checkers such as Pylance no longer flag it. Tiles are rounded to whole
-  pixels, so a scale like ``0.7`` no longer leaves one-pixel gaps between
-  them. A ``scale`` that isn't a number bigger than 0 gives a clear error.
+* Type checkers such as Pylance no longer flag a decimal ``scale`` like
+  ``1.5`` in ``load_tile_map()``.
 
 1.0.0 - First stable release
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

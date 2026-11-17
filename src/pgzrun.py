@@ -9,8 +9,8 @@ __main__).
 """
 
 import sys
-from pgzero.runner import prepare_mod, run_mod
 
+from pgzero.runner import prepare_mod, run_mod
 
 mod = sys.modules["__main__"]
 

@@ -37,23 +37,6 @@ def _get_tile_surface(tileset, tile_col, tile_row, width, height):
     return surfaces[key]
 
 
-def _scaled_size(length, scale):
-    """The length of a tile in whole pixels after scaling.
-
-    The map's grid and its tile images both use this, so that tiles meet
-    exactly. With a scale like 0.7, an exact grid of 11.2 pixels and images
-    of 11 would leave a gap of one pixel every few tiles.
-    """
-    return max(1, round(length * scale))
-
-
-def _check_scale(scale):
-    if isinstance(scale, bool) or not isinstance(scale, numbers.Real):
-        raise TypeError(f"scale should be a number, like 2 or 1.5, not {scale!r}.")
-    if scale <= 0:
-        raise ValueError(f"scale should be bigger than 0, like 2 or 0.5, not {scale!r}.")
-
-
 def _check_col_row(col, row):
     """Return col and row as ints, or explain what they should be."""
     for name, value in (("col", col), ("row", row)):
@@ -207,8 +190,8 @@ class Tile(Actor):
             self._tileset,
             tile_col,
             tile_row,
-            _scaled_size(self._map_tile_width, self._map_scale),
-            _scaled_size(self._map_tile_height, self._map_scale),
+            max(1, round(self._map_tile_width * self._map_scale)),
+            max(1, round(self._map_tile_height * self._map_scale)),
         )
 
     def _place(self, map_col, map_row):
@@ -223,8 +206,8 @@ class Tile(Actor):
             width, height = tile_map.tile_width, tile_map.tile_height
         else:
             origin_x = origin_y = 0
-            width = _scaled_size(self._map_tile_width, self.scale)
-            height = _scaled_size(self._map_tile_height, self.scale)
+            width = self._map_tile_width * self.scale
+            height = self._map_tile_height * self.scale
 
         self.topleft = (origin_x + width * map_col, origin_y + height * map_row)
 
@@ -478,13 +461,13 @@ class TileMap(Mapping):
 
     @property
     def tile_width(self):
-        """The width of one square of the map on the screen, in whole pixels."""
-        return _scaled_size(self._map_tile_width, self._scale)
+        """The width of one square of the map on the screen, in pixels."""
+        return self._map_tile_width * self._scale
 
     @property
     def tile_height(self):
-        """The height of one square of the map on the screen, in whole pixels."""
-        return _scaled_size(self._map_tile_height, self._scale)
+        """The height of one square of the map on the screen, in pixels."""
+        return self._map_tile_height * self._scale
 
     @property
     def x(self):
@@ -811,12 +794,8 @@ def load_tile_map(tmx_name, scale=1.0):
         {layer_name: TileLayer}
     where each layer works like a list of tile Actors.
 
-    scale can be a whole number or not, like 2 or 1.5. Tiles are rounded to
-    whole pixels so that they meet without gaps.
-
     The TMX/TSX/image files are loaded through pgzero loaders from the maps folder.
     """
-    _check_scale(scale)
     root = _load_xml_from_maps(tmx_name)
 
     orientation = root.attrib.get("orientation", "orthogonal")
@@ -837,7 +816,7 @@ def load_tile_map(tmx_name, scale=1.0):
         name=tmx_name,
         map_tile_width=int(root.attrib["tilewidth"]),
         map_tile_height=int(root.attrib["tileheight"]),
-        scale=scale,
+        scale=max(0.0, scale),
         cols=int(root.attrib.get("width", 0)),
         rows=int(root.attrib.get("height", 0)),
         tilesets=tilesets,
