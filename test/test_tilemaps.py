@@ -13,6 +13,7 @@ Fixtures live in ``maps/``:
 
 """
 import inspect
+import math
 import unittest
 from unittest import mock
 import xml.etree.ElementTree as ET
@@ -561,12 +562,69 @@ class SharedTileImageTest(TilemapTestBase):
         self.assertEqual(tile.pos, pos)
 
 
-class DefaultScaleTest(unittest.TestCase):
+class FractionalScaleTest(TilemapTestBase):
+    """Scales that aren't whole numbers. level.tmx has 16 x 16 squares."""
+
+    def test_scale_with_whole_pixel_tiles(self):
+        level = load_tile_map("level", scale=1.5)
+        self.assertEqual((level.tile_width, level.tile_height), (24, 24))
+        for t in level["ground"]:
+            self.assertEqual((t.width, t.height), (24, 24))
+            self.assertEqual(t.topleft, (t.map_col * 24, t.map_row * 24))
+
+    def test_squares_are_rounded_to_whole_pixels(self):
+        """16 * 0.7 is 11.2, so the grid and the images are both 11 pixels."""
+        level = load_tile_map("level", scale=0.7)
+        self.assertEqual((level.tile_width, level.tile_height), (11, 11))
+        for t in level["ground"]:
+            self.assertEqual(t._orig_surf.get_size(), (11, 11))
+            self.assertEqual(t.topleft, (t.map_col * 11, t.map_row * 11))
+            self.assertEqual(level.map_to_pos(t.map_col, t.map_row), t.pos)
+
+    def test_no_gaps_between_tiles(self):
+        level = load_tile_map("level", scale=0.7)
+        screen = pygame.Surface((200, 200), pygame.SRCALPHA)
+        with mock.patch("pgzero.game.screen", screen):
+            for x in [0, 7, -3, 2.5]:
+                screen.fill((0, 0, 0, 0))
+                level.x = x
+                level.draw()
+                # Row 1 has a tile in every square, so it should be solid.
+                y = level.map_to_pos(0, 1)[1]
+                left = max(0, math.ceil(level.x))
+                right = math.floor(level.x + level.cols * level.tile_width)
+                empty = [px for px in range(left, right) if screen.get_at((px, int(y))).a == 0]
+                self.assertEqual(empty, [], f"level.x = {x}")
+
+    def test_new_tiles_on_the_rounded_grid(self):
+        level = load_tile_map("level", scale=0.7)
+        tile = level["ground"].set_tile(1, 0, level.create_tile(0, 0, tileset="tiles"))
+        self.assertEqual(tile.topleft, (11, 0))
+        self.assertEqual((tile.width, tile.height), (11, 11))
+
+    def test_tile_not_on_a_map(self):
+        ground = load_tile_map("level")["ground"]
+        tile = Tile(
+            tileset=ground[0]._tileset, tileset_firstgid=1, tile_col=0, tile_row=0,
+            map_col=2, map_row=1, map_tile_width=16, map_tile_height=16, scale=0.7,
+        )
+        self.assertEqual(tile.topleft, (22, 11))
+
     def test_default_scale_is_a_float(self):
         """So that type checkers accept a scale like 1.5."""
         default = inspect.signature(load_tile_map).parameters["scale"].default
         self.assertIsInstance(default, float)
         self.assertEqual(default, 1)
+
+    def test_scale_must_be_a_number(self):
+        for scale in ["2", (2, 2), None, True]:
+            with self.assertRaisesRegex(TypeError, "scale should be a number"):
+                load_tile_map("level", scale=scale)
+
+    def test_scale_must_be_bigger_than_zero(self):
+        for scale in [0, -1, -0.5]:
+            with self.assertRaisesRegex(ValueError, "scale should be bigger than 0"):
+                load_tile_map("level", scale=scale)
 
 
 # level.tmx's "ground" layer is 4x2 squares of 16x16 pixels, with (1, 0) empty:

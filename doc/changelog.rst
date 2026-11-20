@@ -4,11 +4,13 @@ Changelog
 Pygame Zero Plus
 ----------------
 
-Unreleased
-~~~~~~~~~~
+1.0.1
+~~~~~
 
-* Type checkers such as Pylance no longer flag a decimal ``scale`` like
-  ``1.5`` in ``load_tile_map()``.
+* ``load_tile_map()`` works with a decimal ``scale`` like ``1.5``, and type
+  checkers such as Pylance no longer flag it. Tiles are rounded to whole
+  pixels, so a scale like ``0.7`` no longer leaves one-pixel gaps between
+  them. A ``scale`` that isn't a number bigger than 0 gives a clear error.
 * Added ``level.rotate(angle, around=player, others=enemies)``, which turns a
   tile map a quarter turn around the player, who stays upright, and
   ``level.angle``. Collisions, ``follow()``, ``pos_to_map()``,
