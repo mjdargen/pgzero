@@ -573,6 +573,7 @@ class PGZeroGame:
 
             if updated:
                 with draw_timer:
+                    pgzero.screen.screen_instance._start_frame()
                     draw()
 
                 if self.fps and i and i % 60 == 0:

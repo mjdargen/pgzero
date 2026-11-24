@@ -291,6 +291,216 @@ class ScreenTest(unittest.TestCase):
             ZRect(0, 0, 200, 200)
         )
 
+    def assertPixel(self, pos, expected):
+        """Check the screen's color at pos, allowing for rounding."""
+        actual = tuple(self.surf.get_at(pos))[:3]
+        for a, e in zip(actual, expected):
+            self.assertLessEqual(abs(a - e), 2, f"pixel {pos} is {actual}, expected {expected}")
+
+    def test_filled_rect_see_through(self):
+        """A see-through color is blended over what's already on the screen."""
+        self.screen.fill('white')
+        self.screen.draw.filled_rect(Rect((10, 10), (50, 50)), (0, 0, 0, 128))
+        self.assertPixel((30, 30), (127, 127, 127))
+        self.assertPixel((5, 5), (255, 255, 255))
+
+    def test_filled_rect_see_through_pos_size_form(self):
+        """The (x, y), (w, h) form blends a see-through color too."""
+        self.screen.fill('blue')
+        self.screen.draw.filled_rect((10, 10), (50, 50), (255, 0, 0, 128))
+        self.assertPixel((30, 30), (128, 0, 127))
+
+    def test_see_through_overlaps_add_up(self):
+        """Two see-through shapes over the same spot both darken it."""
+        self.screen.fill('white')
+        self.screen.draw.filled_rect(Rect((0, 0), (100, 100)), (0, 0, 0, 128))
+        self.screen.draw.filled_rect(Rect((50, 50), (100, 100)), (0, 0, 0, 128))
+        self.assertPixel((25, 25), (127, 127, 127))
+        self.assertPixel((75, 75), (63, 63, 63))
+        self.assertPixel((125, 125), (127, 127, 127))
+
+    def test_fully_transparent_draws_nothing(self):
+        """A color with alpha 0 leaves the screen unchanged."""
+        self.screen.fill('white')
+        self.screen.draw.filled_rect(Rect((0, 0), (100, 100)), (0, 0, 0, 0))
+        self.assertPixel((50, 50), (255, 255, 255))
+
+    def test_opaque_alpha_draws_solid(self):
+        """Alpha 255 draws a solid color, the same as (r, g, b)."""
+        self.screen.fill('white')
+        self.screen.draw.filled_rect(Rect((0, 0), (100, 100)), (255, 0, 0, 255))
+        self.assertPixel((50, 50), (255, 0, 0))
+
+    def test_see_through_shapes(self):
+        """Circles, lines, polygons and outlines blend see-through colors."""
+        self.screen.fill('white')
+        half_black = (0, 0, 0, 128)
+        self.screen.draw.filled_circle((50, 50), 20, half_black)
+        self.screen.draw.circle((150, 50), 20, half_black, width=5)
+        self.screen.draw.line((0, 150), (90, 150), half_black, width=5)
+        self.screen.draw.filled_polygon([(110, 110), (190, 110), (150, 190)], half_black)
+        self.screen.draw.polygon([(110, 110), (190, 110), (150, 190)], half_black)
+        self.assertPixel((50, 50), (127, 127, 127))
+        self.assertPixel((150, 32), (127, 127, 127))
+        self.assertPixel((150, 50), (255, 255, 255))
+        self.assertPixel((45, 150), (127, 127, 127))
+        self.assertPixel((150, 130), (127, 127, 127))
+        # the outline goes over the filled polygon's edge, so it's darker there
+        self.assertPixel((150, 110), (63, 63, 63))
+
+    def test_thick_rect_see_through(self):
+        """A thick see-through outline is evenly blended, corners included."""
+        self.screen.fill('white')
+        self.screen.draw.rect(Rect((20, 20), (100, 100)), (0, 0, 0, 128), width=10)
+        self.assertPixel((20, 20), (127, 127, 127))
+        self.assertPixel((70, 20), (127, 127, 127))
+        self.assertPixel((20, 70), (127, 127, 127))
+        self.assertPixel((70, 70), (255, 255, 255))
+
+    def test_see_through_partly_off_screen(self):
+        """A see-through shape hanging off the screen blends the part that's on it."""
+        self.screen.fill('white')
+        self.screen.draw.filled_rect(Rect((150, 150), (100, 100)), (0, 0, 0, 128))
+        self.screen.draw.filled_circle((0, 0), 30, (0, 0, 0, 128))
+        self.assertPixel((199, 199), (127, 127, 127))
+        self.assertPixel((5, 5), (127, 127, 127))
+
+    def test_opacity_keyword(self):
+        """opacity makes any color see-through, including named colors."""
+        self.screen.fill('white')
+        self.screen.draw.filled_rect(Rect((0, 0), (100, 100)), 'black', opacity=0.5)
+        self.screen.draw.filled_circle((150, 50), 20, 'black', opacity=0.5)
+        self.screen.draw.line((0, 150), (90, 150), 'black', width=5, opacity=0.5)
+        self.screen.draw.rect((110, 110), (80, 80), 'black', width=10, opacity=0.5)
+        self.assertPixel((50, 50), (127, 127, 127))
+        self.assertPixel((150, 50), (127, 127, 127))
+        self.assertPixel((45, 150), (127, 127, 127))
+        self.assertPixel((110, 150), (127, 127, 127))
+
+    def test_opacity_combines_with_alpha(self):
+        """opacity multiplies the alpha a color already has."""
+        self.screen.fill('white')
+        self.screen.draw.filled_rect(Rect((0, 0), (100, 100)), (0, 0, 0, 128), opacity=0.5)
+        self.assertPixel((50, 50), (191, 191, 191))
+
+    def test_opacity_is_kept_between_0_and_1(self):
+        """Like Actor.opacity, opacity below 0 is invisible and above 1 is solid."""
+        self.screen.fill('white')
+        self.screen.draw.filled_rect(Rect((0, 0), (100, 100)), 'black', opacity=-1)
+        self.screen.draw.filled_rect(Rect((100, 0), (100, 100)), 'black', opacity=2)
+        self.assertPixel((50, 50), (255, 255, 255))
+        self.assertPixel((150, 50), (0, 0, 0))
+
+    def test_text_see_through(self):
+        """Text is see-through with opacity, or with an (r, g, b, a) color."""
+        def darkest(**kwargs):
+            self.screen.fill('white')
+            self.screen.draw.text("IIII", (10, 0), fontsize=90, **kwargs)
+            return pygame.surfarray.array3d(self.surf).min()
+
+        self.assertEqual(darkest(color='black'), 0)
+        self.assertAlmostEqual(darkest(color='black', opacity=0.5), 127, delta=3)
+        self.assertAlmostEqual(darkest(color=(0, 0, 0, 128)), 127, delta=3)
+        self.assertAlmostEqual(darkest(color='black', alpha=0.5), 127, delta=3)
+
+    def test_fill_opacity(self):
+        """screen.fill() takes opacity too."""
+        self.screen.fill('white')
+        self.screen.fill('black', opacity=0.5)
+        self.assertPixel((100, 100), (127, 127, 127))
+
+    def test_fill_see_through(self):
+        """screen.fill() with a see-through color tints the whole screen."""
+        self.screen.fill('white')
+        self.screen.draw.filled_rect(Rect((0, 0), (100, 200)), 'black')
+        self.screen.fill((255, 0, 0, 128))
+        self.assertPixel((50, 50), (128, 0, 0))
+        self.assertPixel((150, 50), (255, 127, 127))
+
+    def assertPixelNear(self, pos, expected, tolerance):
+        """Check the screen's color at pos, within tolerance."""
+        actual = tuple(self.surf.get_at(pos))[:3]
+        for a, e in zip(actual, expected):
+            self.assertLessEqual(abs(a - e), tolerance, f"pixel {pos} is {actual}, expected {expected}")
+
+    def test_darkness(self):
+        """darkness() darkens the whole screen."""
+        self.screen.fill('white')
+        self.screen.draw.darkness(0.5)
+        self.assertPixel((10, 10), (127, 127, 127))
+        self.screen.draw.darkness(1)
+        self.assertPixel((10, 10), (0, 0, 0))
+
+    def test_darkness_is_kept_between_0_and_1(self):
+        """Like opacity, darkness below 0 changes nothing and above 1 is black."""
+        self.screen.fill('white')
+        self.screen.draw.darkness(-1)
+        self.assertPixel((10, 10), (255, 255, 255))
+        self.screen.draw.darkness(2)
+        self.assertPixel((10, 10), (0, 0, 0))
+
+    def test_light_shows_real_colors_in_the_dark(self):
+        """A light after darkness() shows the scene's real colors under it."""
+        self.screen.fill('white')
+        self.screen.draw.filled_rect(Rect((0, 0), (100, 200)), 'red')
+        self.screen.draw.darkness(1)
+        self.screen.draw.light((100, 100), 60)
+        # in the middle, the real colors are back (the light fades from its
+        # exact middle, so 1 pixel away is a little dimmer)
+        self.assertPixelNear((99, 100), (255, 0, 0), 25)
+        self.assertPixelNear((101, 100), (255, 255, 255), 25)
+        # it fades out toward the edge, and outside it's still dark
+        self.assertLess(self.surf.get_at((150, 100))[1], 100)
+        self.assertPixel((100, 170), (0, 0, 0))
+        self.assertPixel((10, 10), (0, 0, 0))
+
+    def test_light_color(self):
+        """A light's color tints what it shines on."""
+        self.screen.fill('white')
+        self.screen.draw.darkness(1)
+        self.screen.draw.light((100, 100), 60, 'orange')
+        self.assertPixelNear((100, 100), (255, 165, 0), 12)
+
+    def test_light_opacity(self):
+        """opacity makes a light weaker."""
+        self.screen.fill('white')
+        self.screen.draw.darkness(1)
+        self.screen.draw.light((100, 100), 60, opacity=0.5)
+        self.assertPixelNear((100, 100), (127, 127, 127), 12)
+
+    def test_light_without_darkness_brightens(self):
+        """Without darkness(), a light brightens what's on the screen."""
+        self.screen.fill((100, 100, 100))
+        self.screen.draw.light((100, 100), 60)
+        self.assertPixelNear((100, 100), (200, 200, 200), 12)
+        self.assertPixel((10, 10), (100, 100, 100))
+
+    def test_light_forgets_darkness_next_frame(self):
+        """The scene kept by darkness() is forgotten when a new frame starts."""
+        self.screen.fill('white')
+        self.screen.draw.darkness(1)
+        self.screen._start_frame()
+        # the light now shines on the black screen, not last frame's white
+        self.screen.draw.light((100, 100), 60)
+        self.assertPixel((100, 100), (0, 0, 0))
+
+    def test_light_partly_off_screen(self):
+        """A light hanging off the edge of the screen lights the part on it."""
+        self.screen.fill('white')
+        self.screen.draw.darkness(1)
+        self.screen.draw.light((0, 0), 60)
+        self.screen.draw.light((300, 300), 60)  # completely off the screen
+        self.assertPixelNear((1, 1), (255, 255, 255), 30)
+        self.assertPixel((199, 199), (0, 0, 0))
+
+    def test_light_that_shows_nothing(self):
+        """A light with no size, or opacity 0, changes nothing."""
+        self.screen.fill('white')
+        self.screen.draw.darkness(1)
+        self.screen.draw.light((100, 100), 0)
+        self.screen.draw.light((100, 100), 60, opacity=0)
+        self.assertPixel((100, 100), (0, 0, 0))
+
 
 if __name__ == '__main__':
     unittest.main()

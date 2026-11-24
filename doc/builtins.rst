@@ -179,6 +179,65 @@ draw images to the screen ("blit" them).
     All of the colors can be specified as ``(r, g, b)`` tuples, or by
     name, using one of :doc:`Pygame's color names <colors_ref>`
 
+.. _see-through-drawing:
+
+See-through drawing
+'''''''''''''''''''
+
+Every ``screen.draw`` method, and ``screen.fill()``, takes an ``opacity``
+from ``0.0`` (invisible) to ``1.0`` (solid, the default), the same as an
+Actor's :ref:`opacity <transparency>`. A see-through shape blends with what
+is already on the screen, so draw it after the things it should cover::
+
+    # darken the whole screen to make it night
+    screen.draw.filled_rect(Rect(0, 0, WIDTH, HEIGHT), 'black', opacity=0.6)
+
+    # a soft yellow light
+    screen.draw.filled_circle((200, 150), 80, 'yellow', opacity=0.3)
+
+    # tint everything blue
+    screen.fill('blue', opacity=0.2)
+
+    # see-through text
+    screen.draw.text("Paused", center=(WIDTH / 2, HEIGHT / 2), opacity=0.5)
+
+A color can also be an ``(r, g, b, a)`` tuple, where ``a`` goes from ``0``
+(invisible) to ``255`` (solid), such as ``(0, 0, 0, 128)`` for half-see-through
+black. If a color has an ``a`` and ``opacity`` is given as well, both apply.
+
+.. _lighting:
+
+Lighting
+''''''''
+
+.. method:: screen.draw.darkness(amount)
+
+    Darken the whole screen, from ``0.0`` (no change) to ``1.0`` (black).
+
+.. method:: screen.draw.light(pos, radius, color='white', opacity=1.0)
+
+    Draw a soft round light, brightest in the middle and fading out at
+    ``radius``. After ``darkness()``, a light shows the real colors of what's
+    under it, tinted by ``color``. ``opacity`` makes the light weaker.
+
+Draw the scene, then the darkness, then the lights::
+
+    def draw():
+        screen.fill('skyblue')
+        for thing in scene:
+            thing.draw()
+        screen.draw.darkness(0.7)
+        screen.draw.light(flashlight_pos, 150)
+        screen.draw.light(torch.pos, 120, 'orange', opacity=0.8)
+        # anything drawn now isn't darkened, like a score or a glowing torch
+        torch.draw()
+
+Without ``darkness()``, a light brightens what's already on the screen.
+
+To make a light flicker like fire, change its ``opacity`` a little every
+frame. Changing its ``radius`` works too, but each new size takes a moment the
+first time it's used.
+
 .. _rect:
 
 Rect
