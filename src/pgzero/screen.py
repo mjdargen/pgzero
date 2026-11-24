@@ -167,12 +167,15 @@ class SurfacePainter:
 
         ptext draws see-through text with alpha (0.0 to 1.0), but ignores the
         alpha in a text color. opacity works like it does for shapes.
+
+        A completely clear color (alpha 0) is left alone: ptext uses it to draw
+        only the text's outline or shadow, with the letters themselves hollow.
         """
         alpha = kwargs.pop("alpha", 1.0) * min(1.0, max(0.0, kwargs.pop("opacity", 1.0)))
         color = kwargs.get("color")
         if color is not None:
             color = make_color(color)
-            if len(color) == 4:
+            if len(color) == 4 and color[3] > 0:
                 alpha *= color[3] / 255
                 kwargs["color"] = color[:3]
         if alpha < 1:

@@ -63,9 +63,10 @@ transparent. Unlike ``pygame.font.Font.render``, it's generally not more
 efficient to set a background color when calling ``screen.draw.text``. So only
 specify a background color if you actually want one.
 
-Colors with alpha transparency are not supported (except for the special
-case of invisible text with outlines or drop shadows - see below). See
-the ``alpha`` keyword argument for transparency.
+A ``color`` with alpha transparency, like ``(0, 0, 0, 128)``, makes the whole
+text see-through, the same as the ``alpha`` keyword argument below. A
+completely clear color, like ``(0, 0, 0, 0)``, is a special case for invisible
+text with outlines or drop shadows - see below.
 
 Positioning
 '''''''''''
@@ -229,6 +230,11 @@ Keyword argument:
 
 -  ``alpha``: alpha transparency value, between 0 and 1. Defaults to
    ``1.0``.
+
+``opacity`` does the same thing, and matches the ``opacity`` of Actors and
+the other ``screen.draw`` methods: ``screen.draw.text("hello world", (100,
+100), opacity=0.5)``. If you give both, or a color with alpha as well, they
+multiply.
 
 In order to maximize reuse of cached transparent surfaces, the value of
 ``alpha`` is rounded.

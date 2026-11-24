@@ -403,6 +403,21 @@ class ScreenTest(unittest.TestCase):
         self.assertAlmostEqual(darkest(color=(0, 0, 0, 128)), 127, delta=3)
         self.assertAlmostEqual(darkest(color='black', alpha=0.5), 127, delta=3)
 
+    def test_text_clear_color_keeps_hollow_outline(self):
+        """A completely clear text color still draws just the outline."""
+        def red_pixels(**kwargs):
+            self.screen.fill('white')
+            self.screen.draw.text("IIII", (10, 0), fontsize=90, owidth=2, ocolor='red', **kwargs)
+            pixels = pygame.surfarray.array3d(self.surf)
+            return ((pixels[:, :, 0] > 200) & (pixels[:, :, 1] < 80)).sum()
+
+        self.assertGreater(red_pixels(color=(0, 0, 0, 0)), 1000)
+        # the letters are hollow, so nothing is drawn black
+        self.screen.fill('white')
+        self.screen.draw.text("IIII", (10, 0), fontsize=90, owidth=2, ocolor='red', color=(0, 0, 0, 0))
+        brightest_channel = pygame.surfarray.array3d(self.surf).max(axis=2)
+        self.assertGreater(brightest_channel.min(), 100)
+
     def test_fill_opacity(self):
         """screen.fill() takes opacity too."""
         self.screen.fill('white')

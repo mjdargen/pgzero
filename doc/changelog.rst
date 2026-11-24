@@ -4,16 +4,17 @@ Changelog
 Pygame Zero Plus
 ----------------
 
-Unreleased
-~~~~~~~~~~
+1.0.2
+~~~~~
 
 * ``screen.draw`` shapes and ``screen.fill()`` can be see-through. An
   ``(r, g, b, a)`` color used to draw solid, ignoring ``a``; now it blends
   with what's already on the screen. Every ``screen.draw`` method and
   ``screen.fill()`` also take ``opacity``, from ``0.0`` to ``1.0`` like
   ``actor.opacity``, so named colors can be see-through too, e.g.
-  ``screen.draw.filled_rect(box, 'black', opacity=0.5)``.
-  See :ref:`see-through-drawing`.
+  ``screen.draw.filled_rect(box, 'black', opacity=0.5)``. Text takes
+  ``opacity`` too, and now also uses the ``a`` of an ``(r, g, b, a)`` text
+  color. See :ref:`see-through-drawing`.
 * Added ``screen.draw.darkness(amount)`` and ``screen.draw.light(pos, radius,
   color, opacity=1.0)``: darken the screen, then shine soft lights through
   the darkness that show the real colors of what's under them. See
